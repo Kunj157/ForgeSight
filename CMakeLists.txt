@@ -9,9 +9,9 @@ enable_testing()
 
 find_package(nlohmann_json REQUIRED)
 
-add_subdirectory(src/ingestion)
-add_subdirectory(src/alarm-engine)
-add_subdirectory(src/api)
+add_subdirectory(ingestion)
+add_subdirectory(alarm-engine)
+add_subdirectory(api)
 
 find_package(Qt6 COMPONENTS Quick QUIET)
 if(Qt6_FOUND)
