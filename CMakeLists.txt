@@ -22,3 +22,4 @@ endif()
 
 add_subdirectory(tests/unit)
 add_subdirectory(tests/ingestion)
+add_subdirectory(tests/alarm-engine)
