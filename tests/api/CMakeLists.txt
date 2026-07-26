@@ -10,6 +10,7 @@ include(GoogleTest)
 
 add_executable(api_tests
     test_ws_broadcaster.cpp
+    test_services.cpp
 )
 
 target_link_libraries(api_tests PRIVATE
