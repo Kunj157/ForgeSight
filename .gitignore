@@ -1,3 +1,17 @@
+# Local agent docs (not committed)
+AGENTS.md
+implementation-plan.md
+
+# Environment / secrets
+.env
+.env.*
+
+# Docs and data (fetched via scripts, not stored in repo)
+/docs/
+/data/
+/models/
+/build-artifacts/
+
 # Prerequisites
 *.d
 
