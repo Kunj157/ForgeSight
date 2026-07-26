@@ -7,12 +7,12 @@
 
 #include <spdlog/spdlog.h>
 
-#include "alarm_store.h"
-#include "rule_evaluator.h"
-#include "types.h"
+#include "alarm-engine/alarm_store.h"
+#include "alarm-engine/rule_evaluator.h"
+#include "alarm-engine/types.h"
 
-#include "reading.h"
-#include "event_bus.h"
+#include "ingestion/reading.h"
+#include "ingestion/event_bus.h"
 
 using namespace alarm_engine;
 

@@ -4,13 +4,13 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBPQ REQUIRED IMPORTED_TARGET libpq)
 
 add_library(ingestion_lib STATIC
-    reading_parser.cpp
-    thread_pool.cpp
-    event_bus.cpp
-    db_writer.cpp
+    src/reading_parser.cpp
+    src/thread_pool.cpp
+    src/event_bus.cpp
+    src/db_writer.cpp
 )
 
-target_include_directories(ingestion_lib PUBLIC ${CMAKE_SOURCE_DIR}/include/ingestion)
+target_include_directories(ingestion_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(ingestion_lib PUBLIC
     PahoMqttCpp::paho-mqttpp3-shared
     spdlog::spdlog

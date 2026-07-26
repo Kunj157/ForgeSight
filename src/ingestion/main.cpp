@@ -8,11 +8,11 @@
 #include <mqtt/async_client.h>
 #include <spdlog/spdlog.h>
 
-#include "db_writer.h"
-#include "event_bus.h"
-#include "reading.h"
-#include "reading_parser.h"
-#include "thread_pool.h"
+#include "ingestion/db_writer.h"
+#include "ingestion/event_bus.h"
+#include "ingestion/reading.h"
+#include "ingestion/reading_parser.h"
+#include "ingestion/thread_pool.h"
 
 using namespace ingestion;
 

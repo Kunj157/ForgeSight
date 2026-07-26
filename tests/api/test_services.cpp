@@ -2,9 +2,9 @@
 
 #include <libpq-fe.h>
 
-#include "device_service.h"
-#include "rule_service.h"
-#include "types.h"
+#include "api/device_service.h"
+#include "api/rule_service.h"
+#include "alarm-engine/types.h"
 
 namespace {
 

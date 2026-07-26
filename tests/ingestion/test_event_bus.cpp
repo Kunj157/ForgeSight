@@ -5,8 +5,8 @@
 #include <thread>
 #include <vector>
 
-#include "event_bus.h"
-#include "reading.h"
+#include "ingestion/event_bus.h"
+#include "ingestion/reading.h"
 
 using namespace ingestion;
 

@@ -1,4 +1,4 @@
-#include "device_service.h"
+#include "api/device_service.h"
 
 #include <libpq-fe.h>
 #include <spdlog/spdlog.h>

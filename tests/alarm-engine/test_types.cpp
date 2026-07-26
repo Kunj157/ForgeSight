@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "types.h"
+#include "alarm-engine/types.h"
 
 using namespace alarm_engine;
 

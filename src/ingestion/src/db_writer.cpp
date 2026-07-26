@@ -1,4 +1,4 @@
-#include "db_writer.h"
+#include "ingestion/db_writer.h"
 
 #include <libpq-fe.h>
 #include <spdlog/spdlog.h>

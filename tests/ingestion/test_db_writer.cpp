@@ -2,7 +2,7 @@
 
 #include <cstdlib>
 
-#include "db_writer.h"
+#include "ingestion/db_writer.h"
 
 using namespace ingestion;
 

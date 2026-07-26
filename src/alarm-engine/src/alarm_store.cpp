@@ -1,4 +1,4 @@
-#include "alarm_store.h"
+#include "alarm-engine/alarm_store.h"
 
 #include <libpq-fe.h>
 #include <spdlog/spdlog.h>

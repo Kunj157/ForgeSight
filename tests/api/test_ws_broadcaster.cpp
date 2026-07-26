@@ -2,7 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "ws_broadcaster.h"
+#include "api/ws_broadcaster.h"
 
 using json = nlohmann::json;
 using namespace api;

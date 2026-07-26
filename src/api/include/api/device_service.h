@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "reading.h"
+#include "ingestion/reading.h"
 
 namespace api {
 

@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "types.h"
+#include "alarm-engine/types.h"
 
 namespace api {
 

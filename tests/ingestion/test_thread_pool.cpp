@@ -6,7 +6,7 @@
 #include <thread>
 #include <vector>
 
-#include "thread_pool.h"
+#include "ingestion/thread_pool.h"
 
 using namespace ingestion;
 

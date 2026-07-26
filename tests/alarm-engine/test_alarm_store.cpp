@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "alarm_store.h"
-#include "types.h"
+#include "alarm-engine/alarm_store.h"
+#include "alarm-engine/types.h"
 
 using namespace alarm_engine;
 

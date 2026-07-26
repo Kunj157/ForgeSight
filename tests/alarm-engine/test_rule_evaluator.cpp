@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "types.h"
-#include "rule_evaluator.h"
+#include "alarm-engine/types.h"
+#include "alarm-engine/rule_evaluator.h"
 
 using namespace alarm_engine;
 

@@ -1,4 +1,4 @@
-#include "rule_service.h"
+#include "api/rule_service.h"
 
 #include <libpq-fe.h>
 #include <spdlog/spdlog.h>
