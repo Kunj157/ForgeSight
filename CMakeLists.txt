@@ -9,6 +9,25 @@ enable_testing()
 
 find_package(nlohmann_json REQUIRED)
 
+include(FetchContent)
+FetchContent_Declare(
+    asio
+    GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+    GIT_TAG        asio-1-30-2
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(asio)
+
+set(ASIO_INCLUDE_DIR "${asio_SOURCE_DIR}/asio/include" CACHE PATH "" FORCE)
+set(ASIO_FOUND TRUE CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    Crow
+    GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
+    GIT_TAG        v1.3.3
+)
+FetchContent_MakeAvailable(Crow)
+
 add_subdirectory(ingestion)
 add_subdirectory(alarm-engine)
 add_subdirectory(api)

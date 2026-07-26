@@ -16,5 +16,14 @@ target_link_libraries(api_lib PUBLIC
     PkgConfig::LIBPQ
 )
 
+add_library(crow_server STATIC
+    src/server.cpp
+)
+target_include_directories(crow_server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(crow_server PUBLIC
+    api_lib
+    Crow::Crow
+)
+
 add_executable(api main.cpp)
-target_link_libraries(api PRIVATE api_lib)
+target_link_libraries(api PRIVATE crow_server)
