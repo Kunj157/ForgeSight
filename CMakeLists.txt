@@ -7,9 +7,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 enable_testing()
 
+find_package(nlohmann_json REQUIRED)
+
 add_subdirectory(src/ingestion)
 add_subdirectory(src/alarm-engine)
 add_subdirectory(src/api)
+
 find_package(Qt6 COMPONENTS Quick QUIET)
 if(Qt6_FOUND)
     add_subdirectory(ui/app)
@@ -18,3 +21,4 @@ else()
 endif()
 
 add_subdirectory(tests/unit)
+add_subdirectory(tests/ingestion)
