@@ -10,7 +10,7 @@ add_library(ingestion_lib STATIC
     db_writer.cpp
 )
 
-target_include_directories(ingestion_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ingestion_lib PUBLIC ${CMAKE_SOURCE_DIR}/include/ingestion)
 target_link_libraries(ingestion_lib PUBLIC
     PahoMqttCpp::paho-mqttpp3-shared
     spdlog::spdlog

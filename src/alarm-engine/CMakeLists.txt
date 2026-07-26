@@ -9,7 +9,7 @@ add_library(alarm_engine_lib STATIC
     alarm_store.cpp
 )
 
-target_include_directories(alarm_engine_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(alarm_engine_lib PUBLIC ${CMAKE_SOURCE_DIR}/include/alarm-engine)
 target_link_libraries(alarm_engine_lib PUBLIC
     ingestion_lib
     spdlog::spdlog

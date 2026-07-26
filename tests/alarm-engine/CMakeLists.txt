@@ -20,8 +20,4 @@ target_link_libraries(alarm_engine_tests PRIVATE
     GTest::gtest_main
 )
 
-target_include_directories(alarm_engine_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/alarm-engine
-)
-
 gtest_discover_tests(alarm_engine_tests)

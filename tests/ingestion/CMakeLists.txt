@@ -20,8 +20,4 @@ target_link_libraries(ingestion_tests PRIVATE
     GTest::gtest_main
 )
 
-target_include_directories(ingestion_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/ingestion
-)
-
 gtest_discover_tests(ingestion_tests)
