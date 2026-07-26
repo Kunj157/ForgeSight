@@ -1,0 +1,45 @@
+devices:
+  - id: pump-001
+    name: "Main Coolant Pump"
+    sensors:
+      - name: temperature
+        unit: "°C"
+        min: 20.0
+        max: 95.0
+        normal_mean: 65.0
+        normal_std: 3.0
+      - name: vibration
+        unit: "mm/s"
+        min: 0.0
+        max: 20.0
+        normal_mean: 4.5
+        normal_std: 1.0
+      - name: pressure
+        unit: "bar"
+        min: 0.5
+        max: 5.0
+        normal_mean: 2.8
+        normal_std: 0.2
+
+  - id: compressor-001
+    name: "Air Compressor"
+    sensors:
+      - name: temperature
+        unit: "°C"
+        min: 15.0
+        max: 110.0
+        normal_mean: 72.0
+        normal_std: 5.0
+      - name: current
+        unit: "A"
+        min: 0.0
+        max: 30.0
+        normal_mean: 12.0
+        normal_std: 1.5
+
+publish_interval_sec: 1.0
+anomaly_injection_rate: 0.02
+broker:
+  host: "localhost"
+  port: 1883
+  topic_prefix: "factory/devices"

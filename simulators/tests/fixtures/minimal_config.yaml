@@ -1,0 +1,17 @@
+devices:
+  - id: sensor-a
+    name: "Sensor A"
+    sensors:
+      - name: humidity
+        unit: "%"
+        min: 0.0
+        max: 100.0
+        normal_mean: 50.0
+        normal_std: 5.0
+
+publish_interval_sec: 2.0
+anomaly_injection_rate: 0.0
+broker:
+  host: "localhost"
+  port: 1883
+  topic_prefix: "test/devices"

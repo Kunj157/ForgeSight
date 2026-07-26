@@ -66,6 +66,10 @@ Makefile
 install_manifest.txt
 compile_commands.json
 
+# Python
+__pycache__/
+*.pyc
+
 # Temporary files
 *.tmp
 *.log
