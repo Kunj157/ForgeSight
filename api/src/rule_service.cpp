@@ -125,7 +125,8 @@ bool RuleService::update_rule(const alarm_engine::Rule& rule) {
         "threshold=$4, severity=$5 WHERE id=$6",
         6, nullptr, params, lengths, formats, 0);
 
-    bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
+    bool ok = PQresultStatus(res) == PGRES_COMMAND_OK &&
+              std::string(PQcmdTuples(res)) != "0";
     PQclear(res);
     return ok;
 }
@@ -143,7 +144,8 @@ bool RuleService::delete_rule(std::int64_t id) {
         "DELETE FROM alarm_rules WHERE id = $1",
         1, nullptr, params, lengths, formats, 0);
 
-    bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
+    bool ok = PQresultStatus(res) == PGRES_COMMAND_OK &&
+              std::string(PQcmdTuples(res)) != "0";
     PQclear(res);
     return ok;
 }
