@@ -10,6 +10,8 @@ qt_add_qml_module(factory-pulse
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/DeviceTreePanel.qml
+        qml/AlarmPanel.qml
 )
 
-target_link_libraries(factory-pulse PRIVATE Qt6::Quick)
+target_link_libraries(factory-pulse PRIVATE Qt6::Quick ui_lib)
