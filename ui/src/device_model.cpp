@@ -42,12 +42,11 @@ void DeviceModel::update_device(const QString& device_id,
                                 const QString& sensor, double value,
                                 const QString& unit,
                                 const QString& timestamp, bool anomaly) {
-    int row = find_device(device_id);
+    int row = find_device(device_id, sensor);
     QString status = compute_status(anomaly, value);
 
     if (row >= 0) {
         auto& d = devices_[row];
-        d.sensor = sensor;
         d.value = value;
         d.unit = unit;
         d.timestamp = timestamp;
@@ -69,14 +68,17 @@ void DeviceModel::clear() {
 }
 
 QString DeviceModel::device_status(const QString& device_id) const {
-    int row = find_device(device_id);
-    if (row < 0) return {};
-    return devices_[row].status;
+    for (int i = 0; i < devices_.size(); ++i) {
+        if (devices_[i].device_id == device_id) return devices_[i].status;
+    }
+    return {};
 }
 
-int DeviceModel::find_device(const QString& device_id) const {
+int DeviceModel::find_device(const QString& device_id,
+                             const QString& sensor) const {
     for (int i = 0; i < devices_.size(); ++i) {
-        if (devices_[i].device_id == device_id) return i;
+        if (devices_[i].device_id == device_id &&
+            devices_[i].sensor == sensor) return i;
     }
     return -1;
 }

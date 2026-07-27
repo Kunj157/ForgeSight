@@ -44,7 +44,7 @@ public:
     Q_INVOKABLE QString device_status(const QString& device_id) const;
 
 private:
-    int find_device(const QString& device_id) const;
+    int find_device(const QString& device_id, const QString& sensor) const;
     static QString compute_status(bool anomaly, double value);
 
     QVector<DeviceState> devices_;
