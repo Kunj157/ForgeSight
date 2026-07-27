@@ -12,7 +12,13 @@ std::vector<DeviceInfo> DeviceService::list_devices() const {
     if (!conn_) return devices;
 
     auto* res = PQexec(static_cast<PGconn*>(conn_),
-        "SELECT DISTINCT device_id FROM readings ORDER BY device_id");
+        "SELECT r.device_id, r.value, r.unit, r.timestamp::text "
+        "FROM readings r "
+        "INNER JOIN ("
+        "  SELECT device_id, MAX(timestamp) AS max_ts "
+        "  FROM readings GROUP BY device_id"
+        ") latest ON r.device_id = latest.device_id AND r.timestamp = latest.max_ts "
+        "ORDER BY r.device_id");
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
         PQclear(res);
@@ -23,6 +29,9 @@ std::vector<DeviceInfo> DeviceService::list_devices() const {
     for (int i = 0; i < rows; ++i) {
         DeviceInfo d;
         d.id = PQgetvalue(res, i, 0);
+        d.last_value = std::stod(PQgetvalue(res, i, 1));
+        d.last_unit = PQgetvalue(res, i, 2);
+        d.last_reading_time = PQgetvalue(res, i, 3);
         devices.push_back(std::move(d));
     }
     PQclear(res);
