@@ -13,7 +13,7 @@ add_subdirectory(ingestion)
 add_subdirectory(alarm-engine)
 add_subdirectory(api)
 
-find_package(Qt6 COMPONENTS Quick WebSockets QUIET)
+find_package(Qt6 COMPONENTS Quick WebSockets Charts QUIET)
 if(Qt6_FOUND)
     add_subdirectory(ui)
     add_subdirectory(ui/app)

@@ -1,4 +1,5 @@
-find_package(Qt6 REQUIRED COMPONENTS Quick)
+find_package(Qt6 REQUIRED COMPONENTS Quick Charts Widgets)
+
 qt_standard_project_setup()
 
 qt_add_executable(factory-pulse
@@ -12,6 +13,7 @@ qt_add_qml_module(factory-pulse
         qml/Main.qml
         qml/DeviceTreePanel.qml
         qml/AlarmPanel.qml
+        qml/HistoryPanel.qml
 )
 
-target_link_libraries(factory-pulse PRIVATE Qt6::Quick ui_lib)
+target_link_libraries(factory-pulse PRIVATE Qt6::Quick Qt6::Charts Qt6::Widgets ui_lib)

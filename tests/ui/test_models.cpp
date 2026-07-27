@@ -6,6 +6,7 @@
 
 #include "ui/device_model.h"
 #include "ui/alarm_model.h"
+#include "ui/history_model.h"
 
 class DeviceModelTest : public ::testing::Test {
 protected:
@@ -203,4 +204,84 @@ TEST_F(AlarmModelTest, AlarmAddedSignal) {
     model.add_alarm(1, "pump-001", "temperature", 95.0, "warning",
                     "High temp", "2026-07-26T10:00:00Z");
     EXPECT_EQ(spy.count(), 1);
+}
+
+// ---- HistoryModel Tests ----
+
+class HistoryModelTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
+        static int argc = 0;
+        static char* argv[] = {nullptr};
+        static QCoreApplication app(argc, argv);
+    }
+};
+
+TEST_F(HistoryModelTest, EmptyModelHasZeroRows) {
+    ui::HistoryModel model;
+    EXPECT_EQ(model.rowCount(), 0);
+    EXPECT_EQ(model.point_count(), 0);
+}
+
+TEST_F(HistoryModelTest, AddPointIncreasesCount) {
+    ui::HistoryModel model;
+    model.add_point("pump-001", "temperature", 65.0, "°C",
+                    QDateTime::fromString("2026-07-26T10:00:00Z", Qt::ISODate), false);
+    EXPECT_EQ(model.rowCount(), 1);
+}
+
+TEST_F(HistoryModelTest, PointDataIsCorrect) {
+    ui::HistoryModel model;
+    model.add_point("pump-001", "temperature", 65.0, "°C",
+                    QDateTime::fromString("2026-07-26T10:00:00Z", Qt::ISODate), false);
+    auto idx = model.index(0);
+    EXPECT_EQ(model.data(idx, ui::HistoryModel::DeviceIdRole).toString(), "pump-001");
+    EXPECT_EQ(model.data(idx, ui::HistoryModel::SensorRole).toString(), "temperature");
+    EXPECT_DOUBLE_EQ(model.data(idx, ui::HistoryModel::ValueRole).toDouble(), 65.0);
+    EXPECT_EQ(model.data(idx, ui::HistoryModel::UnitRole).toString(), "°C");
+    EXPECT_FALSE(model.data(idx, ui::HistoryModel::AnomalyRole).toBool());
+}
+
+TEST_F(HistoryModelTest, AnomalyPoint) {
+    ui::HistoryModel model;
+    model.add_point("pump-001", "temperature", 120.0, "°C",
+                    QDateTime::fromString("2026-07-26T10:00:00Z", Qt::ISODate), true);
+    auto idx = model.index(0);
+    EXPECT_TRUE(model.data(idx, ui::HistoryModel::AnomalyRole).toBool());
+}
+
+TEST_F(HistoryModelTest, MultiplePoints) {
+    ui::HistoryModel model;
+    model.add_point("pump-001", "temperature", 65.0, "°C",
+                    QDateTime::fromString("2026-07-26T10:00:00Z", Qt::ISODate), false);
+    model.add_point("pump-001", "temperature", 70.0, "°C",
+                    QDateTime::fromString("2026-07-26T10:01:00Z", Qt::ISODate), false);
+    model.add_point("pump-001", "temperature", 68.0, "°C",
+                    QDateTime::fromString("2026-07-26T10:02:00Z", Qt::ISODate), false);
+    EXPECT_EQ(model.rowCount(), 3);
+}
+
+TEST_F(HistoryModelTest, ClearRemovesAll) {
+    ui::HistoryModel model;
+    model.add_point("pump-001", "temperature", 65.0, "°C",
+                    QDateTime::fromString("2026-07-26T10:00:00Z", Qt::ISODate), false);
+    model.clear();
+    EXPECT_EQ(model.rowCount(), 0);
+}
+
+TEST_F(HistoryModelTest, RoleNamesAreCorrect) {
+    ui::HistoryModel model;
+    auto roles = model.roleNames();
+    EXPECT_TRUE(roles.contains(ui::HistoryModel::DeviceIdRole));
+    EXPECT_TRUE(roles.contains(ui::HistoryModel::SensorRole));
+    EXPECT_TRUE(roles.contains(ui::HistoryModel::ValueRole));
+    EXPECT_TRUE(roles.contains(ui::HistoryModel::UnitRole));
+    EXPECT_TRUE(roles.contains(ui::HistoryModel::TimestampRole));
+    EXPECT_TRUE(roles.contains(ui::HistoryModel::AnomalyRole));
+}
+
+TEST_F(HistoryModelTest, OutOfRangeIndexReturnsInvalid) {
+    ui::HistoryModel model;
+    EXPECT_TRUE(model.data(model.index(0), Qt::DisplayRole).isNull());
+    EXPECT_TRUE(model.data(model.index(-1), Qt::DisplayRole).isNull());
 }

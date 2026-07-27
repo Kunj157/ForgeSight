@@ -10,8 +10,11 @@ include(GoogleTest)
 
 find_package(Qt6 REQUIRED COMPONENTS Test Quick)
 
+find_package(Qt6 REQUIRED COMPONENTS Test Quick PrintSupport)
+
 add_executable(ui_tests
     test_models.cpp
+    test_export.cpp
 )
 
 target_link_libraries(ui_tests PRIVATE
@@ -19,6 +22,7 @@ target_link_libraries(ui_tests PRIVATE
     GTest::gtest_main
     Qt6::Test
     Qt6::Quick
+    Qt6::PrintSupport
 )
 
 target_include_directories(ui_tests PRIVATE ${CMAKE_SOURCE_DIR}/ui/include)
