@@ -21,7 +21,6 @@ def main() -> None:
     cfg = load_config(args.config)
     gen = ReadingGenerator(cfg)
     pub = MqttPublisher(cfg, generator=gen)
-    pub.connect()
 
     running = True
 
@@ -32,10 +31,13 @@ def main() -> None:
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
 
+    pub.connect()
+
     print(
         f"Simulating {len(cfg.devices)} device(s) "
         f"every {cfg.publish_interval_sec}s on "
-        f"{cfg.broker_host}:{cfg.broker_port}"
+        f"{cfg.broker_host}:{cfg.broker_port}",
+        flush=True,
     )
 
     try:
@@ -44,7 +46,7 @@ def main() -> None:
             time.sleep(cfg.publish_interval_sec)
     finally:
         pub.disconnect()
-        print("Disconnected.")
+        print("Disconnected.", flush=True)
 
 
 if __name__ == "__main__":
