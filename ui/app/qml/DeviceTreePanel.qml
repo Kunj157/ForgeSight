@@ -218,13 +218,14 @@ Rectangle {
                                     color: status === "critical" ? red
                                          : status === "warning" ? yellow
                                          : blue
+                                    Layout.alignment: Qt.AlignBaseline
                                 }
                                 Label {
                                     text: unit
                                     font.pixelSize: 14
                                     color: subtext
-                                    anchors.baseline: parent.children[0].baseline
-                                    anchors.baselineOffset: 4
+                                    Layout.alignment: Qt.AlignBaseline
+                                    Layout.bottomMargin: 2
                                 }
                                 Item { Layout.fillWidth: true }
                             }
