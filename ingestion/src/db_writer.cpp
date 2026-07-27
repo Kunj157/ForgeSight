@@ -91,21 +91,22 @@ bool DbWriter::insert_batch(std::vector<Reading>& batch) {
     std::vector<const char*> param_values;
     std::vector<int> param_lengths;
     std::vector<int> param_formats;
-    std::vector<Oid> param_types;
+    std::vector<std::string> val_strs(batch.size());
+    int idx = 0;
 
     for (const auto& r : batch) {
+        val_strs[idx] = std::to_string(r.value);
+
         param_values.push_back(r.device_id.c_str());
         param_values.push_back(r.sensor.c_str());
-        auto val_str = std::to_string(r.value);
-        param_values.push_back(val_str.c_str());
+        param_values.push_back(val_strs[idx].c_str());
         param_values.push_back(r.unit.c_str());
         param_values.push_back(r.timestamp.c_str());
-        auto anom_str = r.anomaly ? "t" : "f";
-        param_values.push_back(anom_str);
+        param_values.push_back(r.anomaly ? "t" : "f");
 
         param_lengths.push_back(static_cast<int>(r.device_id.size()));
         param_lengths.push_back(static_cast<int>(r.sensor.size()));
-        param_lengths.push_back(static_cast<int>(val_str.size()));
+        param_lengths.push_back(static_cast<int>(val_strs[idx].size()));
         param_lengths.push_back(static_cast<int>(r.unit.size()));
         param_lengths.push_back(static_cast<int>(r.timestamp.size()));
         param_lengths.push_back(1);
@@ -117,12 +118,7 @@ bool DbWriter::insert_batch(std::vector<Reading>& batch) {
         param_formats.push_back(0);
         param_formats.push_back(0);
 
-        param_types.push_back(0);
-        param_types.push_back(0);
-        param_types.push_back(0);
-        param_types.push_back(0);
-        param_types.push_back(0);
-        param_types.push_back(0);
+        ++idx;
     }
 
     auto* res = PQexecParams(
