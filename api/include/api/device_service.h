@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,9 @@ public:
     std::vector<ingestion::Reading> get_history(
         const std::string& device_id,
         const std::string& sensor,
+        const std::string& since) const;
+
+    std::vector<ingestion::Reading> get_readings_since(
         const std::string& since) const;
 
 private:

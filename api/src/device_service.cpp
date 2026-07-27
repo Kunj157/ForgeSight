@@ -74,4 +74,43 @@ std::vector<ingestion::Reading> DeviceService::get_history(
     return readings;
 }
 
+std::vector<ingestion::Reading> DeviceService::get_readings_since(
+    const std::string& since) const {
+
+    std::vector<ingestion::Reading> readings;
+    if (!conn_) return readings;
+
+    const char* params[1] = {since.c_str()};
+    int lengths[1] = {static_cast<int>(since.size())};
+    int formats[1] = {0};
+
+    auto* res = PQexecParams(
+        static_cast<PGconn*>(conn_),
+        "SELECT device_id, sensor, value, unit, timestamp::text, anomaly "
+        "FROM readings "
+        "WHERE timestamp >= $1 "
+        "ORDER BY timestamp",
+        1, nullptr, params, lengths, formats, 0);
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        PQclear(res);
+        return readings;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i) {
+        ingestion::Reading r;
+        r.device_id = PQgetvalue(res, i, 0);
+        r.sensor = PQgetvalue(res, i, 1);
+        r.value = std::stod(PQgetvalue(res, i, 2));
+        r.unit = PQgetvalue(res, i, 3);
+        r.timestamp = PQgetvalue(res, i, 4);
+        r.anomaly = (PQgetvalue(res, i, 5)[0] == 't');
+        readings.push_back(std::move(r));
+    }
+
+    PQclear(res);
+    return readings;
+}
+
 }  // namespace api

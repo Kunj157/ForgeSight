@@ -33,16 +33,19 @@ int main(int argc, char* argv[]) {
     parser.addOption({{"w", "ws-port"}, "WebSocket listen port", "port", "8081"});
     parser.addOption({{"d", "database"}, "PostgreSQL connection string",
                        "connstr", "dbname=forgesight"});
+    parser.addOption({{"m", "mqtt"}, "MQTT broker URL",
+                       "url", "tcp://localhost:1883"});
     parser.process(app);
 
     quint16 httpPort = parser.value("port").toUShort();
     quint16 wsPort = parser.value("ws-port").toUShort();
     std::string conn_str = parser.value("database").toStdString();
+    std::string mqtt_broker = parser.value("mqtt").toStdString();
 
     auto* conn = connect_db(conn_str);
 
     api::ApiServer server(conn);
-    if (!server.start(httpPort, wsPort)) {
+    if (!server.start(httpPort, wsPort, mqtt_broker)) {
         spdlog::error("Failed to start API server");
         if (conn) PQfinish(static_cast<PGconn*>(conn));
         return 1;

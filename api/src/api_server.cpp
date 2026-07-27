@@ -1,21 +1,50 @@
 #include "api/api_server.h"
 
+#include <QDateTime>
 #include <QUrlQuery>
+#include <memory>
 
 #include <nlohmann/json.hpp>
 
 #include <spdlog/spdlog.h>
 
+#include "ingestion/reading_parser.h"
+
 using json = nlohmann::json;
 
 namespace api {
+
+namespace {
+
+class MqttBridge : public mqtt::callback {
+public:
+    MqttBridge(ApiServer* server) : server_(server) {}
+    void message_arrived(mqtt::const_message_ptr msg) override {
+        ingestion::ReadingParser parser;
+        auto result = parser.parse(msg->to_string());
+        if (std::holds_alternative<ingestion::Reading>(result)) {
+            auto r = std::get<ingestion::Reading>(std::move(result));
+            QMetaObject::invokeMethod(server_, [this, r = std::move(r)]() {
+                server_->broadcast_reading(r);
+            }, Qt::QueuedConnection);
+        }
+    }
+    void connection_lost(const std::string& cause) override {
+        spdlog::warn("API MQTT connection lost: {}", cause);
+    }
+private:
+    ApiServer* server_;
+};
+
+}  // namespace
 
 ApiServer::ApiServer(void* conn, QObject* parent)
     : QObject(parent), conn_(conn), deviceService_(conn), ruleService_(conn) {}
 
 ApiServer::~ApiServer() = default;
 
-bool ApiServer::start(quint16 httpPort, quint16 wsPort) {
+bool ApiServer::start(quint16 httpPort, quint16 wsPort,
+                      const std::string& mqttBroker) {
     setupRoutes();
 
     port_ = server_.listen(QHostAddress::Any, httpPort);
@@ -38,14 +67,65 @@ bool ApiServer::start(quint16 httpPort, quint16 wsPort) {
 
     wsPort_ = wsServer_->serverPort();
     spdlog::info("ApiServer: WebSocket listening on port {}", wsPort_);
+
+    connect_mqtt(mqttBroker);
+
+    last_readings_since_ = QDateTime::currentDateTimeUtc()
+        .addSecs(-10).toString(Qt::ISODate).toStdString();
+
+    auto* timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, [this]() {
+        auto readings = deviceService_.get_readings_since(last_readings_since_);
+        if (!readings.empty()) {
+            last_readings_since_ = readings.back().timestamp;
+            for (const auto& r : readings) {
+                broadcast_reading(r);
+            }
+        }
+    });
+    timer->start(2000);
+
     return true;
 }
 
 void ApiServer::stop() {
+    if (mqtt_) {
+        try { mqtt_->disconnect()->wait(); } catch (...) {}
+    }
     wsServer_.reset();
     server_.listen(QHostAddress::Any, 0);
     port_ = 0;
     wsPort_ = 0;
+}
+
+void ApiServer::connect_mqtt(const std::string& broker) {
+    try {
+        mqtt_ = std::make_unique<mqtt::async_client>(broker, "forgesight-api");
+        auto* bridge = new MqttBridge(this);
+        mqtt_->set_callback(*bridge);
+
+        mqtt::connect_options connOpts;
+        connOpts.set_keep_alive_interval(30);
+        connOpts.set_automatic_reconnect(true);
+
+        mqtt_->connect(connOpts)->wait();
+        mqtt_->subscribe("factory/devices/#", 1)->wait();
+        spdlog::info("ApiServer: subscribed to MQTT broker {}", broker);
+    } catch (const mqtt::exception& e) {
+        spdlog::warn("ApiServer: MQTT not available ({}). Using DB poll only.", e.what());
+    }
+}
+
+void ApiServer::broadcast_reading(const ingestion::Reading& r) {
+    json j = {
+        {"device_id", r.device_id},
+        {"sensor", r.sensor},
+        {"value", r.value},
+        {"unit", r.unit},
+        {"timestamp", r.timestamp},
+        {"anomaly", r.anomaly}
+    };
+    broadcaster_.broadcast(j.dump());
 }
 
 void ApiServer::on_new_websocket_connection() {
@@ -63,6 +143,8 @@ void ApiServer::on_new_websocket_connection() {
                     broadcaster_.remove_connection(id);
                     socket->deleteLater();
                 });
+
+        spdlog::info("WS client connected (total {})", broadcaster_.connection_count());
     }
 }
 
