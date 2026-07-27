@@ -36,7 +36,7 @@ TEST_F(DeviceModelTest, RoleNamesAreCorrect) {
 
 TEST_F(DeviceModelTest, UpdateDeviceAddsNewEntry) {
     ui::DeviceModel model;
-    model.update_device("pump-001", "temperature", 65.0, "°C",
+    model.updateDevice("pump-001", "temperature", 65.0, "°C",
                         "2026-07-26T10:00:00Z", false);
     EXPECT_EQ(model.rowCount(), 1);
 
@@ -51,9 +51,9 @@ TEST_F(DeviceModelTest, UpdateDeviceAddsNewEntry) {
 
 TEST_F(DeviceModelTest, UpdateDeviceUpdatesExistingEntry) {
     ui::DeviceModel model;
-    model.update_device("pump-001", "temperature", 65.0, "°C",
+    model.updateDevice("pump-001", "temperature", 65.0, "°C",
                         "2026-07-26T10:00:00Z", false);
-    model.update_device("pump-001", "temperature", 80.0, "°C",
+    model.updateDevice("pump-001", "temperature", 80.0, "°C",
                         "2026-07-26T10:01:00Z", false);
     EXPECT_EQ(model.rowCount(), 1);
 
@@ -64,16 +64,16 @@ TEST_F(DeviceModelTest, UpdateDeviceUpdatesExistingEntry) {
 
 TEST_F(DeviceModelTest, MultipleDevicesTracked) {
     ui::DeviceModel model;
-    model.update_device("pump-001", "temperature", 65.0, "°C",
+    model.updateDevice("pump-001", "temperature", 65.0, "°C",
                         "2026-07-26T10:00:00Z", false);
-    model.update_device("pump-002", "pressure", 2.5, "bar",
+    model.updateDevice("pump-002", "pressure", 2.5, "bar",
                         "2026-07-26T10:00:00Z", false);
     EXPECT_EQ(model.rowCount(), 2);
 }
 
 TEST_F(DeviceModelTest, AnomalyDeviceMarkedCritical) {
     ui::DeviceModel model;
-    model.update_device("pump-001", "temperature", 120.0, "°C",
+    model.updateDevice("pump-001", "temperature", 120.0, "°C",
                         "2026-07-26T10:00:00Z", true);
     auto idx = model.index(0);
     EXPECT_EQ(model.data(idx, ui::DeviceModel::StatusRole).toString(),
@@ -84,7 +84,7 @@ TEST_F(DeviceModelTest, AnomalyDeviceMarkedCritical) {
 
 TEST_F(DeviceModelTest, NormalDeviceMarkedNormal) {
     ui::DeviceModel model;
-    model.update_device("pump-001", "temperature", 65.0, "°C",
+    model.updateDevice("pump-001", "temperature", 65.0, "°C",
                         "2026-07-26T10:00:00Z", false);
     auto idx = model.index(0);
     EXPECT_EQ(model.data(idx, ui::DeviceModel::StatusRole).toString(),
@@ -93,9 +93,9 @@ TEST_F(DeviceModelTest, NormalDeviceMarkedNormal) {
 
 TEST_F(DeviceModelTest, ClearRemovesAllDevices) {
     ui::DeviceModel model;
-    model.update_device("pump-001", "temperature", 65.0, "°C",
+    model.updateDevice("pump-001", "temperature", 65.0, "°C",
                         "2026-07-26T10:00:00Z", false);
-    model.update_device("pump-002", "pressure", 2.5, "bar",
+    model.updateDevice("pump-002", "pressure", 2.5, "bar",
                         "2026-07-26T10:00:00Z", false);
     model.clear();
     EXPECT_EQ(model.rowCount(), 0);
@@ -103,17 +103,17 @@ TEST_F(DeviceModelTest, ClearRemovesAllDevices) {
 
 TEST_F(DeviceModelTest, DataChangedSignalEmittedOnUpdate) {
     ui::DeviceModel model;
-    model.update_device("pump-001", "temperature", 65.0, "°C",
+    model.updateDevice("pump-001", "temperature", 65.0, "°C",
                         "2026-07-26T10:00:00Z", false);
     QSignalSpy spy(&model, &QAbstractItemModel::dataChanged);
-    model.update_device("pump-001", "temperature", 80.0, "°C",
+    model.updateDevice("pump-001", "temperature", 80.0, "°C",
                         "2026-07-26T10:01:00Z", false);
     EXPECT_EQ(spy.count(), 1);
 }
 
 TEST_F(DeviceModelTest, DeviceStatusMethod) {
     ui::DeviceModel model;
-    model.update_device("pump-001", "temperature", 65.0, "°C",
+    model.updateDevice("pump-001", "temperature", 65.0, "°C",
                         "2026-07-26T10:00:00Z", false);
     EXPECT_EQ(model.device_status("pump-001"), "normal");
     EXPECT_EQ(model.device_status("nonexistent"), "");

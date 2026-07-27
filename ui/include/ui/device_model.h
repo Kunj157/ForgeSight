@@ -36,9 +36,9 @@ public:
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void update_device(const QString& device_id, const QString& sensor,
-                       double value, const QString& unit,
-                       const QString& timestamp, bool anomaly);
+    Q_INVOKABLE void updateDevice(const QString& device_id, const QString& sensor,
+                                   double value, const QString& unit,
+                                   const QString& timestamp, bool anomaly);
     void clear();
 
     Q_INVOKABLE QString device_status(const QString& device_id) const;

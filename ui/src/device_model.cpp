@@ -38,7 +38,7 @@ QHash<int, QByteArray> DeviceModel::roleNames() const {
     };
 }
 
-void DeviceModel::update_device(const QString& device_id,
+void DeviceModel::updateDevice(const QString& device_id,
                                 const QString& sensor, double value,
                                 const QString& unit,
                                 const QString& timestamp, bool anomaly) {

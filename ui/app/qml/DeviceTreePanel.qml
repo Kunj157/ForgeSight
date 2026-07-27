@@ -47,7 +47,7 @@ Rectangle {
                 text: deviceModel.rowCount + " online"
                 font.pixelSize: 13
                 color: green
-                anchors.baseline: parent.children[0].baseline
+                Layout.alignment: Qt.AlignBaseline
             }
 
             Item { Layout.fillWidth: true }
