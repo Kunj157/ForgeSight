@@ -36,7 +36,8 @@ Window {
             var obj = JSON.parse(json)
             alarmModel.add_alarm(
                 obj.id, obj.device_id, obj.sensor,
-                obj.value, obj.severity, obj.message, obj.timestamp
+                obj.value, obj.severity, obj.message, obj.timestamp,
+                !!obj.acknowledged
             )
         }
         function onConnectedChanged() {

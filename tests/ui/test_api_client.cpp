@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>
-#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -13,25 +12,41 @@
 namespace {
 
 class FakeHttpServer : public QObject {
-public:
+  public:
     explicit FakeHttpServer(QObject* parent = nullptr) : QObject(parent) {
         server_.listen(QHostAddress::LocalHost, 0);
         QObject::connect(&server_, &QTcpServer::newConnection, this, [this]() {
             while (server_.hasPendingConnections()) {
                 auto* sock = server_.nextPendingConnection();
                 QObject::connect(sock, &QTcpSocket::readyRead, sock, [this, sock]() {
-                    const QByteArray req = sock->readAll();
+                    buffer_ += sock->readAll();
+                    if (!buffer_.contains("\r\n\r\n"))
+                        return;
+
+                    const QByteArray req = buffer_;
+                    buffer_.clear();
+                    last_request_ = req;
+
+                    int status = 200;
                     QByteArray body = QByteArrayLiteral("[]");
-                    if (req.contains("GET /api/readings/latest")) {
+                    if (req.contains("POST /api/alarms/") && req.contains("/ack")) {
+                        body = QByteArrayLiteral("{\"ok\":true}");
+                        status = ack_status_;
+                    } else if (req.contains("GET /api/readings/latest")) {
                         body = readings_body_;
                     } else if (req.contains("GET /api/alarms")) {
                         body = alarms_body_;
                     }
-                    const QByteArray resp =
-                        "HTTP/1.1 200 OK\r\n"
-                        "Content-Type: application/json\r\n"
-                        "Content-Length: " + QByteArray::number(body.size()) + "\r\n"
-                        "Connection: close\r\n\r\n" + body;
+
+                    const QByteArray resp = "HTTP/1.1 " + QByteArray::number(status) +
+                                            (status == 200 ? " OK" : " ERR") +
+                                            "\r\n"
+                                            "Content-Type: application/json\r\n"
+                                            "Content-Length: " +
+                                            QByteArray::number(body.size()) +
+                                            "\r\n"
+                                            "Connection: close\r\n\r\n" +
+                                            body;
                     sock->write(resp);
                     sock->disconnectFromHost();
                 });
@@ -44,16 +59,19 @@ public:
     QByteArray readings_body_ =
         R"([{"device_id":"pump-001","sensor":"temperature","value":72.5,"unit":"C","timestamp":"2026-07-30T10:00:00Z","anomaly":false}])";
     QByteArray alarms_body_ =
-        R"([{"id":1,"device_id":"pump-001","sensor":"temperature","value":96,"severity":"critical","message":"hot","timestamp":"2026-07-30T10:00:01Z"}])";
+        R"([{"id":1,"device_id":"pump-001","sensor":"temperature","value":96,"severity":"critical","message":"hot","timestamp":"2026-07-30T10:00:01Z","acknowledged":true}])";
+    int ack_status_ = 200;
+    QByteArray last_request_;
 
-private:
+  private:
     QTcpServer server_;
+    QByteArray buffer_;
 };
 
-}  // namespace
+} // namespace
 
 class ApiClientTest : public ::testing::Test {
-protected:
+  protected:
     static void SetUpTestSuite() {
         static int argc = 0;
         static char* argv[] = {nullptr};
@@ -75,7 +93,7 @@ TEST_F(ApiClientTest, FetchLatestReadingsEmitsReading) {
     EXPECT_DOUBLE_EQ(spy[0][2].toDouble(), 72.5);
 }
 
-TEST_F(ApiClientTest, FetchAlarmsEmitsAlarm) {
+TEST_F(ApiClientTest, FetchAlarmsEmitsAlarmWithAckState) {
     FakeHttpServer server;
     ui::ApiClient client;
     client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
@@ -86,4 +104,18 @@ TEST_F(ApiClientTest, FetchAlarmsEmitsAlarm) {
     ASSERT_EQ(spy.size(), 1);
     EXPECT_EQ(spy[0][0].toLongLong(), 1);
     EXPECT_EQ(spy[0][4].toString(), "critical");
+    EXPECT_TRUE(spy[0][7].toBool());
+}
+
+TEST_F(ApiClientTest, AcknowledgeAlarmPostsAndEmitsSuccess) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+
+    QSignalSpy spy(&client, &ui::ApiClient::alarmAckSucceeded);
+    client.acknowledgeAlarm(42);
+    ASSERT_TRUE(spy.wait(2000));
+    ASSERT_EQ(spy.size(), 1);
+    EXPECT_EQ(spy[0][0].toLongLong(), 42);
+    EXPECT_TRUE(server.last_request_.contains("POST /api/alarms/42/ack"));
 }

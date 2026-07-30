@@ -275,17 +275,7 @@ Rectangle {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                var xhr = new XMLHttpRequest()
-                                xhr.open("POST",
-                                    "http://127.0.0.1:8080/api/alarms/" + model.id + "/ack")
-                                xhr.onreadystatechange = function() {
-                                    if (xhr.readyState === XMLHttpRequest.DONE
-                                            && xhr.status === 200)
-                                        alarmModel.acknowledge(model.id)
-                                }
-                                xhr.send()
-                            }
+                            onClicked: apiClient.acknowledgeAlarm(model.id)
                         }
                     }
 

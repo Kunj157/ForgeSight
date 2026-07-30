@@ -20,10 +20,9 @@ struct AlarmEntry {
 class AlarmModel : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
-    Q_PROPERTY(int unacknowledgedCount READ unacknowledged_count
-               NOTIFY unacknowledgedCountChanged)
+    Q_PROPERTY(int unacknowledgedCount READ unacknowledged_count NOTIFY unacknowledgedCountChanged)
 
-public:
+  public:
     enum Roles {
         IdRole = Qt::UserRole + 1,
         DeviceIdRole,
@@ -43,24 +42,23 @@ public:
 
     int count() const { return alarms_.size(); }
 
-    Q_INVOKABLE void add_alarm(qint64 id, const QString& device_id,
-                               const QString& sensor, double value,
-                               const QString& severity, const QString& message,
-                               const QString& timestamp);
+    Q_INVOKABLE void add_alarm(qint64 id, const QString& device_id, const QString& sensor,
+                               double value, const QString& severity, const QString& message,
+                               const QString& timestamp, bool acknowledged = false);
     Q_INVOKABLE void acknowledge(qint64 alarm_id);
     Q_INVOKABLE void clear();
     int unacknowledged_count() const;
 
-Q_SIGNALS:
+  Q_SIGNALS:
     void alarmAdded();
     void alarmAcknowledged(qint64 alarm_id);
     void countChanged();
     void unacknowledgedCountChanged();
 
-private:
+  private:
     int find_alarm(qint64 id) const;
 
     QVector<AlarmEntry> alarms_;
 };
 
-}  // namespace ui
+} // namespace ui

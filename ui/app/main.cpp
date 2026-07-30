@@ -38,22 +38,22 @@ int main(int argc, char* argv[]) {
     QObject::connect(&apiClient, &ui::ApiClient::readingReceived, &deviceModel,
                      &ui::DeviceModel::updateDevice);
     QObject::connect(&apiClient, &ui::ApiClient::alarmReceived, &alarmModel,
-                     [&alarmModel](qint64 id, const QString& deviceId,
-                                   const QString& sensor, double value,
-                                   const QString& severity, const QString& message,
-                                   const QString& timestamp) {
-                         alarmModel.add_alarm(id, deviceId, sensor, value,
-                                              severity, message, timestamp);
+                     [&alarmModel](qint64 id, const QString& deviceId, const QString& sensor,
+                                   double value, const QString& severity, const QString& message,
+                                   const QString& timestamp, bool acknowledged) {
+                         alarmModel.add_alarm(id, deviceId, sensor, value, severity, message,
+                                              timestamp, acknowledged);
                      });
+    QObject::connect(&apiClient, &ui::ApiClient::alarmAckSucceeded, &alarmModel,
+                     &ui::AlarmModel::acknowledge);
 
-    QObject::connect(&wsClient, &ui::WsClient::connectedChanged, &apiClient,
-                     [&]() {
-                         if (wsClient.is_connected()) {
-                             std::fprintf(stderr, "ForgeSight: WebSocket connected — bootstrapping\n");
-                             std::fflush(stderr);
-                             apiClient.bootstrap();
-                         }
-                     });
+    QObject::connect(&wsClient, &ui::WsClient::connectedChanged, &apiClient, [&]() {
+        if (wsClient.is_connected()) {
+            std::fprintf(stderr, "ForgeSight: WebSocket connected — bootstrapping\n");
+            std::fflush(stderr);
+            apiClient.bootstrap();
+        }
+    });
 
     // Also bootstrap once at startup even if WS is down (shows last DB state).
     QTimer::singleShot(300, &apiClient, &ui::ApiClient::bootstrap);
@@ -67,14 +67,12 @@ int main(int argc, char* argv[]) {
     ctx->setContextProperty("historyModel", &historyModel);
     ctx->setContextProperty("apiClient", &apiClient);
 
-    QObject::connect(&engine, &QQmlEngine::warnings,
-                     [](const QList<QQmlError>& warnings) {
-                         for (const auto& w : warnings) {
-                             std::fprintf(stderr, "QML: %s\n",
-                                          qPrintable(w.toString()));
-                         }
-                         std::fflush(stderr);
-                     });
+    QObject::connect(&engine, &QQmlEngine::warnings, [](const QList<QQmlError>& warnings) {
+        for (const auto& w : warnings) {
+            std::fprintf(stderr, "QML: %s\n", qPrintable(w.toString()));
+        }
+        std::fflush(stderr);
+    });
 
     std::fprintf(stderr, "ForgeSight: loading UI…\n");
     std::fflush(stderr);
@@ -91,10 +89,8 @@ int main(int argc, char* argv[]) {
         win->show();
         win->raise();
         win->requestActivate();
-        std::fprintf(stderr, "ForgeSight: window ready (%dx%d)\n",
-                     win->width(), win->height());
-        std::fprintf(stderr, "ForgeSight: API %s  WS %s\n",
-                     qPrintable(apiBase), qPrintable(wsUrl));
+        std::fprintf(stderr, "ForgeSight: window ready (%dx%d)\n", win->width(), win->height());
+        std::fprintf(stderr, "ForgeSight: API %s  WS %s\n", qPrintable(apiBase), qPrintable(wsUrl));
         std::fflush(stderr);
     }
 
