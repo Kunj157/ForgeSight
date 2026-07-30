@@ -71,33 +71,33 @@ bool AlarmStore::create_tables() {
 bool AlarmStore::add_rule(const Rule& rule) {
     if (!conn_) return false;
 
-    const char* param_values[5];
+    const char* param_values[6];
     std::string dev = rule.device_id;
     std::string sen = rule.sensor;
     std::string cond = condition_to_string(rule.condition);
     auto thr = std::to_string(rule.threshold);
     std::string sev = severity_to_string(rule.severity);
+    std::string tpl = rule.message_template;
 
     param_values[0] = dev.c_str();
     param_values[1] = sen.c_str();
     param_values[2] = cond.c_str();
     param_values[3] = thr.c_str();
     param_values[4] = sev.c_str();
+    param_values[5] = tpl.c_str();
 
-    int lengths[5] = {
-        static_cast<int>(dev.size()),
-        static_cast<int>(sen.size()),
-        static_cast<int>(cond.size()),
-        static_cast<int>(thr.size()),
-        static_cast<int>(sev.size()),
+    int lengths[6] = {
+        static_cast<int>(dev.size()), static_cast<int>(sen.size()),
+        static_cast<int>(cond.size()), static_cast<int>(thr.size()),
+        static_cast<int>(sev.size()), static_cast<int>(tpl.size()),
     };
-    int formats[5] = {0, 0, 0, 0, 0};
+    int formats[6] = {0, 0, 0, 0, 0, 0};
 
     auto* res = PQexecParams(
         static_cast<PGconn*>(conn_),
-        "INSERT INTO alarm_rules (device_id, sensor, condition, threshold, severity) "
-        "VALUES ($1, $2, $3, $4, $5)",
-        5, nullptr, param_values, lengths, formats, 0);
+        "INSERT INTO alarm_rules (device_id, sensor, condition, threshold, severity, message_template) "
+        "VALUES ($1, $2, $3, $4, $5, $6)",
+        6, nullptr, param_values, lengths, formats, 0);
 
     bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
     if (!ok) {
