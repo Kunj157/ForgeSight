@@ -1,32 +1,21 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import "Theme.js" as Theme
 
 Window {
-    width: 1366
-    height: 860
+    id: root
+    width: 1440
+    height: 900
     visible: true
-    title: "ForgeSight — Factory Pulse Monitor"
-    color: "#0f0f17"
-    minimumWidth: 1024
-    minimumHeight: 600
-
-    readonly property color surface0: "#1a1a2e"
-    readonly property color surface1: "#232340"
-    readonly property color surface2: "#2d2d50"
-    readonly property color text: "#e0e0f0"
-    readonly property color subtext: "#9090b0"
-    readonly property color muted: "#505070"
-    readonly property color blue: "#6c8cff"
-    readonly property color blueAlt: "#4a6cf7"
-    readonly property color green: "#4ade80"
-    readonly property color red: "#f87171"
-    readonly property color yellow: "#fbbf24"
-    readonly property color orange: "#fb923c"
-    readonly property color accent: "#818cf8"
-    readonly property color accentGlow: "#818cf830"
+    title: "ForgeSight"
+    color: Theme.bgApp
+    minimumWidth: 1100
+    minimumHeight: 680
 
     property int alarmCount: 0
+    property int navIndex: 0
+    property string statusHint: "Connecting…"
 
     Connections {
         target: alarmModel
@@ -45,197 +34,227 @@ Window {
         }
         function onAlarmReceived(json) {
             var obj = JSON.parse(json)
-            alarmModel.addAlarm(
+            alarmModel.add_alarm(
                 obj.id, obj.device_id, obj.sensor,
                 obj.value, obj.severity, obj.message, obj.timestamp
             )
         }
+        function onConnectedChanged() {
+            if (wsClient.connected)
+                statusHint = ""
+            else
+                statusHint = "Disconnected — run scripts/dev-up.sh"
+        }
     }
 
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
         spacing: 0
 
+        // —— Left sidebar (Grafana / Ignition style) ——
         Rectangle {
-            Layout.fillWidth: true
-            height: 64
-            color: surface0
-            z: 10
+            Layout.preferredWidth: Theme.sidebarWidth
+            Layout.fillHeight: true
+            color: Theme.bgSidebar
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 28
-                anchors.rightMargin: 28
-                spacing: 16
-
-                RowLayout {
-                    spacing: 12
-                    Rectangle {
-                        width: 36; height: 36; radius: 10
-                        color: accent
-                        Label {
-                            anchors.centerIn: parent
-                            text: "F"
-                            font.bold: true
-                            font.pixelSize: 20
-                            color: "#fff"
-                        }
-                    }
-                    ColumnLayout {
-                        spacing: 0
-                        Label {
-                            text: "ForgeSight"
-                            font.bold: true
-                            font.pixelSize: 18
-                            font.letterSpacing: 0.5
-                            color: text
-                        }
-                        Label {
-                            text: "Factory Pulse Monitor"
-                            font.pixelSize: 11
-                            color: muted
-                        }
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
-
-                Rectangle {
-                    height: 36
-                    width: 180
-                    radius: 8
-                    color: surface1
-                    border.color: surface2
-                    border.width: 1
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 10
-                        spacing: 6
-                        Label { text: "\u2315"; color: muted; font.pixelSize: 14 }
-                        Label {
-                            text: "Search devices..."
-                            color: muted; font.pixelSize: 12
-                            Layout.fillWidth: true
-                        }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.IBeamCursor
-                    }
-                }
-
-                Item { width: 16 }
-
-                Rectangle {
-                    height: 36
-                    width: connBadge.width + 28
-                    radius: 8
-                    color: wsClient.connected ? "#0a2e1a" : "#2e0a0a"
-                    border.color: wsClient.connected ? green : red
-                    border.width: 1
-                    RowLayout {
-                        id: connBadge
-                        anchors.centerIn: parent
-                        spacing: 6
-                        Rectangle {
-                            width: 8; height: 8; radius: 4
-                            color: wsClient.connected ? green : red
-                            opacity: wsClient.connected ? 1.0 : 0.6
-                        }
-                        Label {
-                            text: wsClient.connected ? "Live" : "Offline"
-                            color: wsClient.connected ? green : red
-                            font.pixelSize: 12; font.bold: true
-                        }
-                    }
-                }
-
-                Rectangle {
-                    height: 36
-                    width: alarmBadge.width + 28
-                    radius: 8
-                    visible: alarmCount > 0
-                    color: "#2e0a0a"
-                    border.color: red
-                    border.width: 1
-                    RowLayout {
-                        id: alarmBadge
-                        anchors.centerIn: parent
-                        spacing: 6
-                        Label { text: "\u26A0"; color: red; font.pixelSize: 13 }
-                        Label {
-                            text: alarmCount + " alarm" + (alarmCount > 1 ? "s" : "")
-                            color: red; font.pixelSize: 12; font.bold: true
-                        }
-                    }
-                }
+            Rectangle {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 1
+                color: Theme.border
             }
-        }
 
-        Rectangle {
-            Layout.fillWidth: true; height: 1; color: surface2
-        }
-
-        Rectangle {
-            Layout.fillWidth: true; height: 48; color: surface0
-            z: 9
-            RowLayout {
+            ColumnLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 28; anchors.rightMargin: 28
+                anchors.margins: 0
                 spacing: 0
+
+                // Brand
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 64
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spaceLg
+                        anchors.rightMargin: Theme.spaceLg
+                        spacing: Theme.spaceMd
+
+                        Rectangle {
+                            width: 32; height: 32; radius: Theme.radiusMd
+                            color: Theme.accent
+                            Label {
+                                anchors.centerIn: parent
+                                text: "FS"
+                                font.bold: true
+                                font.pixelSize: Theme.fontSm
+                                color: "#ffffff"
+                            }
+                        }
+
+                        ColumnLayout {
+                            spacing: 1
+                            Layout.fillWidth: true
+                            Label {
+                                text: "ForgeSight"
+                                font.bold: true
+                                font.pixelSize: Theme.fontLg
+                                color: Theme.textPrimary
+                            }
+                            Label {
+                                text: "Plant Monitor"
+                                font.pixelSize: Theme.fontXs
+                                color: Theme.textMuted
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: Theme.divider
+                }
+
+                // Nav section label
+                Label {
+                    Layout.leftMargin: Theme.spaceLg
+                    Layout.topMargin: Theme.spaceLg
+                    Layout.bottomMargin: Theme.spaceSm
+                    text: "MONITORING"
+                    font.pixelSize: 10
+                    font.bold: true
+                    font.letterSpacing: 1.2
+                    color: Theme.textMuted
+                }
 
                 Repeater {
                     model: [
-                        { icon: "\u25A3", label: "Devices", badge: deviceModel.rowCount },
-                        { icon: "\u26A0", label: "Alarms", badge: alarmModel.rowCount },
-                        { icon: "\u25B3", label: "History", badge: 0 },
+                        { label: "Devices", index: 0 },
+                        { label: "Alarms", index: 1 },
+                        { label: "History", index: 2 },
                     ]
                     delegate: Item {
-                        width: 140; height: 48
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 40
+                        Layout.leftMargin: Theme.spaceSm
+                        Layout.rightMargin: Theme.spaceSm
+
                         Rectangle {
                             anchors.fill: parent
-                            color: tabBar.currentIndex === index ? surface1 : "transparent"
-                            radius: 0
+                            radius: Theme.radiusMd
+                            color: root.navIndex === modelData.index
+                                   ? Theme.accentSoft : "transparent"
+
                             Rectangle {
-                                anchors.bottom: parent.bottom
-                                anchors.left: parent.left; anchors.right: parent.right
-                                height: 2
-                                color: tabBar.currentIndex === index ? accent : "transparent"
+                                visible: root.navIndex === modelData.index
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 3
+                                height: 20
+                                radius: 1
+                                color: Theme.accent
                             }
+
                             RowLayout {
-                                anchors.centerIn: parent
-                                spacing: 8
-                                Label {
-                                    text: modelData.icon
-                                    color: tabBar.currentIndex === index ? accent : muted
-                                    font.pixelSize: 16
-                                }
+                                anchors.fill: parent
+                                anchors.leftMargin: Theme.spaceLg
+                                anchors.rightMargin: Theme.spaceMd
+                                spacing: Theme.spaceMd
+
                                 Label {
                                     text: modelData.label
-                                    color: tabBar.currentIndex === index ? text : subtext
-                                    font.pixelSize: 13
-                                    font.bold: tabBar.currentIndex === index
+                                    font.pixelSize: Theme.fontMd
+                                    font.bold: root.navIndex === modelData.index
+                                    color: root.navIndex === modelData.index
+                                           ? Theme.textPrimary : Theme.textSecondary
+                                    Layout.fillWidth: true
                                 }
+
                                 Rectangle {
-                                    width: badgeText.width + 12; height: 20; radius: 10
-                                    visible: modelData.badge > 0
-                                    color: index === 1 ? "#4a1a1a" : "#1a2e4a"
+                                    visible: modelData.index === 0 && deviceModel.count > 0
+                                    width: Math.max(22, countDev.implicitWidth + 10)
+                                    height: 20
+                                    radius: Theme.radiusSm
+                                    color: Theme.bgElevated
                                     Label {
-                                        id: badgeText
+                                        id: countDev
                                         anchors.centerIn: parent
-                                        text: modelData.badge
-                                        color: index === 1 ? red : blue
-                                        font.pixelSize: 11; font.bold: true
+                                        text: deviceModel.count
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        color: Theme.textSecondary
+                                    }
+                                }
+
+                                Rectangle {
+                                    visible: modelData.index === 1 && alarmCount > 0
+                                    width: Math.max(22, countAlm.implicitWidth + 10)
+                                    height: 20
+                                    radius: Theme.radiusSm
+                                    color: Theme.criticalBg
+                                    border.color: Theme.critical
+                                    border.width: 1
+                                    Label {
+                                        id: countAlm
+                                        anchors.centerIn: parent
+                                        text: alarmCount
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        color: Theme.critical
                                     }
                                 }
                             }
+
                             MouseArea {
                                 anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
                                 hoverEnabled: true
-                                onEntered: parent.color = Qt.rgba(0.14, 0.14, 0.25, 0.5)
-                                onExited: parent.color = "transparent"
-                                onClicked: tabBar.currentIndex = index
+                                onClicked: root.navIndex = modelData.index
+                            }
+                        }
+                    }
+                }
+
+                Item { Layout.fillHeight: true }
+
+                // Connection footer
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: Theme.divider
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 56
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: Theme.spaceLg
+                        spacing: Theme.spaceSm
+
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            color: wsClient.connected ? Theme.success : Theme.critical
+                        }
+
+                        ColumnLayout {
+                            spacing: 1
+                            Layout.fillWidth: true
+                            Label {
+                                text: wsClient.connected ? "Connected" : "Disconnected"
+                                font.pixelSize: Theme.fontSm
+                                font.bold: true
+                                color: Theme.textPrimary
+                            }
+                            Label {
+                                text: "ws://127.0.0.1:8081"
+                                font.pixelSize: 10
+                                color: Theme.textMuted
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
                             }
                         }
                     }
@@ -243,27 +262,154 @@ Window {
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true; height: 1; color: surface2
-        }
-
-        StackLayout {
-            currentIndex: tabBar.currentIndex
+        // —— Main content ——
+        ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
+            spacing: 0
 
-            DeviceTreePanel {}
-            AlarmPanel {}
-            HistoryPanel {}
+            // Top status bar
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Theme.topBarHeight
+                color: Theme.bgTopBar
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: Theme.border
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.spaceXl
+                    anchors.rightMargin: Theme.spaceXl
+                    spacing: Theme.spaceLg
+
+                    Label {
+                        text: root.navIndex === 0 ? "Devices"
+                            : root.navIndex === 1 ? "Alarms"
+                            : "History"
+                        font.pixelSize: Theme.fontXl
+                        font.bold: true
+                        color: Theme.textPrimary
+                    }
+
+                    Label {
+                        text: root.statusHint.length > 0
+                              ? root.statusHint
+                              : (root.navIndex === 0
+                                 ? "Live sensor readings across the plant"
+                                 : root.navIndex === 1
+                                 ? "Active and acknowledged alarm events"
+                                 : "Historical trends and export")
+                        font.pixelSize: Theme.fontSm
+                        color: root.statusHint.length > 0 ? Theme.warning : Theme.textMuted
+                        Layout.fillWidth: true
+                    }
+
+                    // KPI chips — muted unless abnormal
+                    Rectangle {
+                        height: 28
+                        width: kpiDev.implicitWidth + 20
+                        radius: Theme.radiusSm
+                        color: Theme.bgElevated
+                        border.color: Theme.border
+                        border.width: 1
+                        Label {
+                            id: kpiDev
+                            anchors.centerIn: parent
+                            text: deviceModel.count + " devices"
+                            font.pixelSize: Theme.fontXs
+                            color: Theme.textSecondary
+                        }
+                    }
+
+                    Rectangle {
+                        height: 28
+                        width: kpiAlm.implicitWidth + 20
+                        radius: Theme.radiusSm
+                        color: alarmCount > 0 ? Theme.criticalBg : Theme.bgElevated
+                        border.color: alarmCount > 0 ? Theme.critical : Theme.border
+                        border.width: 1
+                        Label {
+                            id: kpiAlm
+                            anchors.centerIn: parent
+                            text: alarmCount + " unacked"
+                            font.pixelSize: Theme.fontXs
+                            font.bold: alarmCount > 0
+                            color: alarmCount > 0 ? Theme.critical : Theme.textSecondary
+                        }
+                    }
+
+                    Rectangle {
+                        height: 28
+                        width: kpiLive.implicitWidth + 24
+                        radius: Theme.radiusSm
+                        color: wsClient.connected ? Theme.successBg : Theme.criticalBg
+                        border.color: wsClient.connected ? Theme.success : Theme.critical
+                        border.width: 1
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 6
+                            Rectangle {
+                                width: 6; height: 6; radius: 3
+                                color: wsClient.connected ? Theme.success : Theme.critical
+                            }
+                            Label {
+                                id: kpiLive
+                                text: wsClient.connected ? "LIVE" : "OFFLINE"
+                                font.pixelSize: Theme.fontXs
+                                font.bold: true
+                                color: wsClient.connected ? Theme.success : Theme.critical
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Lazy Loaders — ChartView in History is expensive; don't build
+            // all tabs at startup or the window appears to hang with no logs.
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+
+                Loader {
+                    anchors.fill: parent
+                    active: root.navIndex === 0 || item !== null
+                    visible: root.navIndex === 0
+                    source: "DeviceTreePanel.qml"
+                }
+                Loader {
+                    anchors.fill: parent
+                    active: root.navIndex === 1 || item !== null
+                    visible: root.navIndex === 1
+                    source: "AlarmPanel.qml"
+                }
+                Loader {
+                    anchors.fill: parent
+                    active: root.navIndex === 2
+                    visible: root.navIndex === 2
+                    asynchronous: true
+                    source: "HistoryPanel.qml"
+
+                    Rectangle {
+                        anchors.fill: parent
+                        z: 1
+                        visible: parent.status === Loader.Loading
+                        color: Theme.bgPanel
+                        Label {
+                            anchors.centerIn: parent
+                            text: "Loading history view…"
+                            color: Theme.textMuted
+                            font.pixelSize: Theme.fontMd
+                        }
+                    }
+                }
+            }
         }
-    }
-
-    TabBar {
-        id: tabBar
-        visible: false
-        TabButton { }
-        TabButton { }
-        TabButton { }
     }
 }

@@ -2,117 +2,111 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtCharts
+import "Theme.js" as Theme
 
 Rectangle {
-    color: "#0f0f17"
-
-    readonly property color surface0: "#1a1a2e"
-    readonly property color surface1: "#232340"
-    readonly property color surface2: "#2d2d50"
-    readonly property color surface3: "#3d3d6b"
-    readonly property color text: "#e0e0f0"
-    readonly property color subtext: "#9090b0"
-    readonly property color muted: "#505070"
-    readonly property color blue: "#6c8cff"
-    readonly property color green: "#4ade80"
-    readonly property color red: "#f87171"
-    readonly property color yellow: "#fbbf24"
-    readonly property color accent: "#818cf8"
-    readonly property color cardBg: "#14142a"
-    readonly property color cardBorder: "#2a2a45"
-    readonly property color purple: "#a78bfa"
-    readonly property color teal: "#2dd4bf"
-    readonly property color orange: "#fb923c"
+    color: Theme.bgPanel
 
     property bool loading: false
+    property int selectedRangeHours: 24
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: 28
-        anchors.rightMargin: 28
-        anchors.topMargin: 24
-        anchors.bottomMargin: 20
-        spacing: 20
+        anchors.margins: Theme.spaceXl
+        spacing: Theme.spaceLg
 
-        RowLayout {
+        // Query toolbar
+        Rectangle {
             Layout.fillWidth: true
-            spacing: 16
-
-            Label {
-                text: "History"
-                font.pixelSize: 22
-                font.bold: true
-                color: text
-            }
-
-            Item { Layout.fillWidth: true }
-
-            Label {
-                text: "Device"
-                font.pixelSize: 12; color: subtext
-            }
-            ComboBox {
-                id: deviceCombo
-                model: deviceModel
-                textRole: "deviceId"
-                Layout.minimumWidth: 150
-                contentItem: Label {
-                    text: parent.currentText
-                    color: text; font.pixelSize: 12
-                    leftPadding: 8
-                }
-                indicator: Label {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin: 8
-                    text: "\u25BE"
-                    color: subtext; font.pixelSize: 12
-                }
-                background: Rectangle {
-                    color: surface0; radius: 8
-                    border.color: surface2; border.width: 1
-                }
-            }
-
-            Label {
-                text: "Sensor"
-                font.pixelSize: 12; color: subtext
-            }
-            ComboBox {
-                id: sensorCombo
-                model: ListModel {
-                    ListElement { text: "temperature" }
-                    ListElement { text: "pressure" }
-                    ListElement { text: "vibration" }
-                    ListElement { text: "flow" }
-                }
-                textRole: "text"
-                Layout.minimumWidth: 150
-                contentItem: Label {
-                    text: parent.currentText
-                    color: text; font.pixelSize: 12
-                    leftPadding: 8
-                }
-                indicator: Label {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin: 8
-                    text: "\u25BE"
-                    color: subtext; font.pixelSize: 12
-                }
-                background: Rectangle {
-                    color: surface0; radius: 8
-                    border.color: surface2; border.width: 1
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
+            height: 52
+            radius: Theme.radiusLg
+            color: Theme.bgCard
+            border.color: Theme.border
+            border.width: 1
 
             RowLayout {
-                spacing: 4
+                anchors.fill: parent
+                anchors.leftMargin: Theme.spaceLg
+                anchors.rightMargin: Theme.spaceLg
+                spacing: Theme.spaceMd
+
+                Label {
+                    text: "Device"
+                    font.pixelSize: Theme.fontXs
+                    color: Theme.textMuted
+                }
+                ComboBox {
+                    id: deviceCombo
+                    model: deviceModel
+                    textRole: "deviceId"
+                    Layout.preferredWidth: 160
+                    contentItem: Label {
+                        text: parent.currentText
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontSm
+                        leftPadding: 8
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: Theme.bgInput
+                        radius: Theme.radiusMd
+                        border.color: Theme.border
+                        border.width: 1
+                    }
+                    indicator: Label {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.rightMargin: 8
+                        text: "v"
+                        color: Theme.textMuted
+                        font.pixelSize: Theme.fontXs
+                    }
+                }
+
+                Label {
+                    text: "Sensor"
+                    font.pixelSize: Theme.fontXs
+                    color: Theme.textMuted
+                }
+                ComboBox {
+                    id: sensorCombo
+                    model: ListModel {
+                        ListElement { text: "temperature" }
+                        ListElement { text: "pressure" }
+                        ListElement { text: "vibration" }
+                        ListElement { text: "flow" }
+                        ListElement { text: "current" }
+                    }
+                    textRole: "text"
+                    Layout.preferredWidth: 140
+                    contentItem: Label {
+                        text: parent.currentText
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontSm
+                        leftPadding: 8
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: Theme.bgInput
+                        radius: Theme.radiusMd
+                        border.color: Theme.border
+                        border.width: 1
+                    }
+                    indicator: Label {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.rightMargin: 8
+                        text: "v"
+                        color: Theme.textMuted
+                        font.pixelSize: Theme.fontXs
+                    }
+                }
+
+                Rectangle {
+                    width: 1; height: 24
+                    color: Theme.divider
+                }
+
                 Repeater {
                     model: [
                         { label: "1H", hours: 1 },
@@ -121,27 +115,28 @@ Rectangle {
                         { label: "7D", hours: 168 },
                     ]
                     delegate: Rectangle {
-                        height: 30
-                        width: quickBtnLabel.width + 20
-                        radius: 8
-                        color: mouseOver ? surface2 : surface0
-                        border.color: surface2; border.width: 1
-                        property bool mouseOver: false
-                        Behavior on color { ColorAnimation { duration: 100 } }
+                        height: 28
+                        width: rangeLbl.implicitWidth + 16
+                        radius: Theme.radiusMd
+                        color: selectedRangeHours === modelData.hours
+                               ? Theme.accentSoft : "transparent"
+                        border.color: selectedRangeHours === modelData.hours
+                                      ? Theme.accent : Theme.border
+                        border.width: 1
                         Label {
-                            id: quickBtnLabel
+                            id: rangeLbl
                             anchors.centerIn: parent
                             text: modelData.label
-                            font.pixelSize: 11; font.bold: true
-                            color: accent
+                            font.pixelSize: Theme.fontXs
+                            font.bold: selectedRangeHours === modelData.hours
+                            color: selectedRangeHours === modelData.hours
+                                   ? Theme.accent : Theme.textSecondary
                         }
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            hoverEnabled: true
-                            onEntered: parent.mouseOver = true
-                            onExited: parent.mouseOver = false
                             onClicked: {
+                                selectedRangeHours = modelData.hours
                                 var d = new Date()
                                 d.setHours(d.getHours() - modelData.hours)
                                 fromDate.text = d.toISOString()
@@ -150,131 +145,104 @@ Rectangle {
                         }
                     }
                 }
-            }
 
-            Rectangle {
-                height: 30; width: 150; radius: 8
-                color: surface0; border.color: surface2; border.width: 1
-                RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                    spacing: 4
-                    Label { text: "\u23F0"; font.pixelSize: 11; color: muted }
+                Rectangle {
+                    height: 28
+                    Layout.preferredWidth: 170
+                    radius: Theme.radiusMd
+                    color: Theme.bgInput
+                    border.color: Theme.border
+                    border.width: 1
                     TextInput {
                         id: fromDate
-                        text: "2026-01-01T00:00:00Z"
-                        color: text; font.pixelSize: 11
-                        Layout.fillWidth: true
+                        anchors.fill: parent
+                        anchors.margins: 6
+                        text: {
+                            var d = new Date()
+                            d.setHours(d.getHours() - 24)
+                            return d.toISOString()
+                        }
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontXs
                         clip: true
+                        selectByMouse: true
                     }
                 }
-            }
 
-            Rectangle {
-                height: 30; width: 90; radius: 8
-                color: loading ? surface0 : accent
-                Behavior on color { ColorAnimation { duration: 150 } }
-                border.color: loading ? surface2 : "transparent"
-                border.width: 1
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    BusyIndicator {
-                        width: 14; height: 14
-                        running: loading
-                        visible: loading
-                    }
+                Item { Layout.fillWidth: true }
+
+                Rectangle {
+                    height: 30
+                    width: loadLbl.implicitWidth + 28
+                    radius: Theme.radiusMd
+                    color: loading ? Theme.bgElevated : Theme.accent
                     Label {
-                        text: loading ? "Loading..." : "Load"
-                        font.pixelSize: 12; font.bold: true
-                        color: loading ? subtext : "#fff"
+                        id: loadLbl
+                        anchors.centerIn: parent
+                        text: loading ? "Loading…" : "Load"
+                        font.pixelSize: Theme.fontSm
+                        font.bold: true
+                        color: loading ? Theme.textMuted : "#ffffff"
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        enabled: !loading
+                        onClicked: loadHistory()
                     }
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: loadHistory()
-                }
-            }
-
-            Rectangle {
-                height: 30; width: 70; radius: 8
-                color: surface0; border.color: surface2; border.width: 1
-                Label {
-                    anchors.centerIn: parent
-                    text: "Clear"
-                    font.pixelSize: 12; color: subtext
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-                    onEntered: parent.color = surface2
-                    onExited: parent.color = surface0
-                    onClicked: {
-                        historyModel.clear()
-                        lineSeries.clear()
-                        anomalySeries.clear()
-                    }
-                }
-            }
-
-            Item { Layout.fillWidth: true }
-
-            Label {
-                text: historyModel.point_count() + " points"
-                font.pixelSize: 12; color: muted
             }
         }
 
+        // Chart panel
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: cardBg
-            radius: 12
-            border.color: cardBorder
+            radius: Theme.radiusLg
+            color: Theme.bgCard
+            border.color: Theme.border
             border.width: 1
+            clip: true
 
             ChartView {
                 id: chartView
                 anchors.fill: parent
-                anchors.margins: 0
+                anchors.margins: 4
                 antialiasing: true
                 backgroundColor: "transparent"
                 legend.visible: true
-                legend.labelColor: subtext
-                legend.font.pixelSize: 11
+                legend.labelColor: Theme.textSecondary
+                legend.font.pixelSize: Theme.fontXs
                 legend.alignment: Qt.AlignTop
                 legend.backgroundVisible: false
-                legend.color: "transparent"
-
-                property real minVisibleX: 0
-                property real maxVisibleX: 0
-                property real minVisibleY: 0
-                property real maxVisibleY: 0
+                margins.top: 8
+                margins.bottom: 8
+                margins.left: 8
+                margins.right: 8
 
                 DateTimeAxis {
                     id: axisX
                     format: "MM-dd HH:mm"
-                    labelsColor: muted
-                    gridLineColor: "#1a1a30"
+                    labelsColor: Theme.textMuted
+                    gridLineColor: Theme.divider
                     minorGridVisible: false
-                    labelsAngle: -45
+                    labelsAngle: -35
                     tickCount: 6
-                    color: surface2
+                    color: Theme.border
                 }
 
                 ValueAxis {
                     id: axisY
-                    labelsColor: muted
-                    gridLineColor: "#1a1a30"
+                    labelsColor: Theme.textMuted
+                    gridLineColor: Theme.divider
                     labelFormat: "%.1f"
-                    color: surface2
+                    color: Theme.border
                 }
 
                 LineSeries {
                     id: lineSeries
                     name: "Readings"
-                    color: blue
+                    color: Theme.accent
                     width: 2
                     axisX: axisX
                     axisY: axisY
@@ -283,29 +251,27 @@ Rectangle {
                 ScatterSeries {
                     id: anomalySeries
                     name: "Anomalies"
-                    color: red
-                    markerSize: 8
+                    color: Theme.critical
+                    markerSize: 7
                     borderColor: "transparent"
                     axisX: axisX
                     axisY: axisY
                 }
             }
 
-            // Zoom overlay hint
             Label {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                anchors.margins: 12
-                text: "\u2315 Scroll to zoom \u00B7 Drag to pan"
+                anchors.margins: Theme.spaceMd
+                text: "Scroll to zoom"
                 font.pixelSize: 10
-                color: muted
-                opacity: 0.6
+                color: Theme.textMuted
+                opacity: 0.7
             }
 
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.NoButton
-                hoverEnabled: true
                 onWheel: function(wheel) {
                     if (wheel.angleDelta.y > 0)
                         chartView.zoomIn()
@@ -313,57 +279,98 @@ Rectangle {
                         chartView.zoomOut()
                 }
             }
+
+            // Empty chart hint
+            Label {
+                anchors.centerIn: parent
+                visible: historyModel.point_count() === 0 && !loading
+                text: "Select a device and range, then Load"
+                font.pixelSize: Theme.fontMd
+                color: Theme.textMuted
+            }
         }
 
+        // Footer actions
         RowLayout {
             Layout.fillWidth: true
-            spacing: 10
+            spacing: Theme.spaceSm
 
             Rectangle {
-                height: 34; width: 120; radius: 8
-                color: surface0; border.color: surface2; border.width: 1
-                RowLayout {
-                    anchors.centerIn: parent; spacing: 6
-                    Label { text: "\u2B06"; font.pixelSize: 12; color: blue }
-                    Label { text: "Export CSV"; font.pixelSize: 12; color: subtext; font.bold: true }
+                height: 32
+                width: csvLbl.implicitWidth + 24
+                radius: Theme.radiusMd
+                color: Theme.bgCard
+                border.color: Theme.border
+                border.width: 1
+                Label {
+                    id: csvLbl
+                    anchors.centerIn: parent
+                    text: "Export CSV"
+                    font.pixelSize: Theme.fontXs
+                    font.bold: true
+                    color: Theme.textSecondary
                 }
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-                    onEntered: parent.color = surface2
-                    onExited: parent.color = surface0
                     onClicked: {
-                        var data = historyModel.points()
-                        var csv = "DeviceId,Sensor,Value,Unit,Timestamp,Anomaly\n"
-                        for (var i = 0; i < data.length; i++) {
-                            var p = data[i]
-                            csv += p.deviceId + "," + p.sensor + "," + p.value
-                                   + "," + p.unit + "," + p.timestamp + "," + p.anomaly + "\n"
-                        }
-                        csvExport.toFile("history_export.csv", csv)
-                        statusText.text = "Exported CSV"
+                        if (historyModel.exportCsv("history_export.csv"))
+                            statusText.text = "Exported CSV"
+                        else
+                            statusText.text = "CSV export failed"
                     }
                 }
             }
 
             Rectangle {
-                height: 34; width: 120; radius: 8
-                color: surface0; border.color: surface2; border.width: 1
-                RowLayout {
-                    anchors.centerIn: parent; spacing: 6
-                    Label { text: "\u2B06"; font.pixelSize: 12; color: red }
-                    Label { text: "Export PDF"; font.pixelSize: 12; color: subtext; font.bold: true }
+                height: 32
+                width: pdfLbl.implicitWidth + 24
+                radius: Theme.radiusMd
+                color: Theme.bgCard
+                border.color: Theme.border
+                border.width: 1
+                Label {
+                    id: pdfLbl
+                    anchors.centerIn: parent
+                    text: "Export PDF"
+                    font.pixelSize: Theme.fontXs
+                    font.bold: true
+                    color: Theme.textSecondary
                 }
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-                    onEntered: parent.color = surface2
-                    onExited: parent.color = surface0
                     onClicked: {
-                        pdfExport.exportChart("history_export.pdf", chartView)
-                        statusText.text = "Exported PDF"
+                        if (historyModel.exportPdf("history_export.pdf", Window.window))
+                            statusText.text = "Exported PDF"
+                        else
+                            statusText.text = "PDF export failed"
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 32
+                width: clearBtn.implicitWidth + 24
+                radius: Theme.radiusMd
+                color: "transparent"
+                border.color: Theme.border
+                border.width: 1
+                Label {
+                    id: clearBtn
+                    anchors.centerIn: parent
+                    text: "Clear"
+                    font.pixelSize: Theme.fontXs
+                    color: Theme.textSecondary
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        historyModel.clear()
+                        lineSeries.clear()
+                        anomalySeries.clear()
+                        statusText.text = ""
                     }
                 }
             }
@@ -372,8 +379,14 @@ Rectangle {
 
             Label {
                 id: statusText
-                color: subtext
-                font.pixelSize: 12
+                color: Theme.textMuted
+                font.pixelSize: Theme.fontXs
+            }
+
+            Label {
+                text: historyModel.point_count() + " points"
+                color: Theme.textMuted
+                font.pixelSize: Theme.fontXs
             }
         }
     }
@@ -393,7 +406,8 @@ Rectangle {
         var since = fromDate.text
 
         var xhr = new XMLHttpRequest()
-        var url = "http://127.0.0.1:8080/api/history/" + device + "/" + sensor + "?since=" + since
+        var url = "http://127.0.0.1:8080/api/history/" + device + "/"
+                  + sensor + "?since=" + since
         xhr.open("GET", url)
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
@@ -425,7 +439,7 @@ Rectangle {
                             axisX.max = new Date(maxTs)
                         }
                         statusText.text = "Loaded " + historyModel.point_count() + " points"
-                    } catch(e) {
+                    } catch (e) {
                         statusText.text = "Parse error: " + e
                     }
                 } else {
@@ -434,19 +448,5 @@ Rectangle {
             }
         }
         xhr.send()
-    }
-
-    QtObject {
-        id: csvExport
-        function toFile(path, csv) {
-            try { return true } catch(e) { return false }
-        }
-    }
-
-    QtObject {
-        id: pdfExport
-        function exportChart(path, chartView) {
-            try { return true } catch(e) { return false }
-        }
     }
 }
