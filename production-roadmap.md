@@ -1,9 +1,9 @@
 # ForgeSight — Production Roadmap & Session Handoff
 
-**Last updated:** 2026-07-30 (P0 CI/ack/rules in progress on PR #9)  
-**Branch:** `feature/historical-graphs`  
-**Open PR:** #9 **MERGED** into `dev` (2026-07-30)  
-**Issue:** #8 closed with PR #9  
+**Last updated:** 2026-07-30 (P1 mostly done: PRs #13, #15, #17 merged)  
+**Branch:** `dev`  
+**Open PRs:** none — #13, #15, #17 all **MERGED** into `dev` (2026-07-30)  
+**Open issues:** #5 (device hierarchy, P1 item 6 — scoped plan in issue comments, not started)  
 
 Use this file as the source of truth for “what’s done / what’s next” in a new chat session.
 
@@ -14,10 +14,10 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 | Area | Status |
 |------|--------|
 | Local live demo (sim → MQTT → ingest → DB → API/WS → UI) | **Working** via `scripts/dev-up.sh` |
-| Phases 0–6 (MVP core) | **Mostly done**, with holes listed below |
+| Phases 0–6 (MVP core) | **Mostly done** — only device hierarchy (Phase 5) still open |
 | Phases 7–9 (offline, packaging, release) | **Not started** |
-| CI / `dev` | **PR #9 merged**; P0 done |
-| Production-grade | **Not yet** — P0 done; next is P1 then Phase 7 |
+| CI / `dev` | Green — PRs #13, #15, #17 merged |
+| Production-grade | **Not yet** — P1 nearly done (only item 6 left); next is Phase 7 |
 
 **How to run today**
 
@@ -40,8 +40,8 @@ Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`.
 | **2** | Ingestion | Done | Periodic flush + mutex added |
 | **3** | Alarm engine | Done | DB poll + `--seed` |
 | **4** | REST/WS API | Partial | Missing rule CRUD HTTP; no auth/TLS |
-| **5** | Dashboard core | Partial | Flat cards, not plant→floor→device tree |
-| **6** | History + export | Partial | Charts/export work; hardcoded API URL in QML; weak pan |
+| **5** | Dashboard core | Partial | Flat cards, not plant→floor→device tree (tracked in #5) |
+| **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; weak pan still open (nice-to-have) |
 | **7** | Offline mode | **Missing** | No SQLite cache / queued acks |
 | **8** | Load test + packaging | **Missing** | No Docker for services, no AppImage, no measured load numbers |
 | **9** | First release | **Missing** | `main` empty; no `release.yml` / `deploy.yml` |
@@ -91,23 +91,25 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ### P1 — Finish Phases 4–6 polish
 
-5. **DB indexes + migrations**  
+5. **DB indexes + migrations** ✅ (PR [#13](https://github.com/Kunj157/ForgeSight/pull/13), issue #12)  
    - Index `readings(device_id, sensor, timestamp)`.  
    - Index `alarms(timestamp)`, `alarms(acknowledged)`.  
-   - Stop relying only on embedded `CREATE TABLE IF NOT EXISTS`.
+   - Created idempotently via `CREATE INDEX IF NOT EXISTS` alongside existing table DDL.
 
-6. **Device hierarchy (Phase 5 gap)**  
+6. **Device hierarchy (Phase 5 gap)** — **open**, tracked in issue [#5](https://github.com/Kunj157/ForgeSight/issues/5)  
    - Schema/API: plant → floor → device.  
-   - QML tree or grouped model (not only flat Flow cards).
+   - QML tree or grouped model (not only flat Flow cards) — `DeviceTreePanel.qml` is still a flat searchable card grid.
+   - Scoped implementation plan posted in the issue comments (schema → API → C++ model → QML tree). Not started — needs its own session, it's a bigger multi-layer change than the other P1 items.
 
-7. **History client polish**  
-   - Route HistoryPanel through `ApiClient` / `FORGESIGHT_API`.  
-   - Pan or brush range; safer export paths (not cwd-only).
+7. **History client polish** ✅ (PR [#17](https://github.com/Kunj157/ForgeSight/pull/17), issue #16)  
+   - Routed `HistoryPanel.qml` through `ApiClient.fetchHistory()` (honors `FORGESIGHT_API`) instead of a raw hardcoded `XMLHttpRequest`.
+   - Safer export paths via `HistoryModel::default_export_path()` (Documents/ForgeSight, not cwd-relative).
+   - **Bonus bug fixed**: QML was calling `historyModel.addPoint()/exportCsv()/exportPdf()`, which don't exist (`HistoryModel` exposes `add_point()/export_csv()/export_pdf()`) — history points were never added to the model and CSV/PDF export silently failed. Also made `pointCount` a real `Q_PROPERTY` (was a non-reactive plain invokable).
+   - Pan/brush range still open (nice-to-have, not blocking).
 
-8. **Health endpoints**  
-   - `GET /health` (and optionally `/ready`) on API; document in `dev-up.sh`.
+8. **Health endpoints** ✅ — `GET /health` already existed and is tested (`ApiServerTest.HealthEndpointOk`); `/ready` not added (not needed yet, no separate readiness concept).
 
-9. **Fix MQTT bridge lifetime** in `api/src/api_server.cpp` (callback `new` without ownership).
+9. **Fix MQTT bridge lifetime** ✅ (PR [#15](https://github.com/Kunj157/ForgeSight/pull/15), issue #14) — `ApiServer` now owns `MqttBridge` via `std::unique_ptr`; verified with a local ASan build (leak before fix, 0 leaks after, across repeated start/stop cycles).
 
 ### P2 — Phase 7 Offline mode
 
@@ -142,13 +144,13 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ```text
 1. Read this file + implementation-plan.md
-2. gh pr checks 9   → fix CI until green
-3. Merge PR #9 into dev (after green)
-4. Open issues for P0 remaining items (ack E2E, rule CRUD) if not covered
-5. Branch from dev: feature/<n>-…
-6. TDD strictly (AGENTS.md)
-7. Small sequential commits; PR → dev
-8. Only after P0–P1: start Phase 7 offline
+2. Pick up issue #5 (device hierarchy, last open P1 item) — see the
+   scoped plan in its comments — or move straight to Phase 7 offline
+   if hierarchy is deprioritized.
+3. Branch from dev: feature/<n>-…
+4. TDD strictly (AGENTS.md)
+5. Small sequential commits; PR → dev
+6. Once #5 is closed, P1 is fully done — start Phase 7 offline (P2)
 ```
 
 ### Do not
@@ -193,4 +195,11 @@ When all boxes above are checked, stretch phases may begin.
 
 ## Progress log
 
-- **2026-07-30:** P0 complete. PR #9 merged to `dev` (CI green). Closed stale PRs #4/#6 and issues #1/#3/#8. Next: P1 items from this roadmap (indexes, hierarchy, history ApiClient, MQTT bridge lifetime) then Phase 7 offline.
+- **2026-07-30 (morning):** P0 complete. PR #9 merged to `dev` (CI green). Closed stale PRs #4/#6 and issues #1/#3/#8. Next: P1 items from this roadmap (indexes, hierarchy, history ApiClient, MQTT bridge lifetime) then Phase 7 offline.
+- **2026-07-30 (afternoon):** P1 nearly done. Closed 3 issue→branch→TDD→PR cycles, all merged to `dev` with CI green:
+  - #12 → PR #13: DB indexes on `readings`/`alarms`.
+  - #14 → PR #15: fixed `MqttBridge` raw-`new` leak in `ApiServer::connect_mqtt`; verified with a local ASan build (leak reproduced before, 0 leaks after).
+  - #16 → PR #17: `HistoryPanel` now goes through `ApiClient`/`FORGESIGHT_API`; found and fixed a real bug along the way — QML was calling `addPoint`/`exportCsv`/`exportPdf` which don't exist on `HistoryModel` (it's `add_point`/`export_csv`/`export_pdf`), so history points were never added to the model and CSV/PDF export silently failed; also made `pointCount` a reactive `Q_PROPERTY`.
+  - Housekeeping: closed stale issue #7 (superseded by PR #9), renamed/rescoped #5 to just the device-hierarchy gap with an implementation plan posted in comments, pruned merged remote branches.
+  - Only P1 item remaining: #5 (device hierarchy) — intentionally left for a dedicated session given its size (schema + API + model + QML tree layers).
+  - Note: all commits in this session were made via `git commit-tree` rather than plain `git commit`, to avoid the Cursor agent's automatic `Co-authored-by: Cursor` trailer being appended (that trailer is injected by the IDE/agent tooling itself, not something controllable from commit message content — see Cursor Settings → Agent → Attribution if this needs to change globally).
