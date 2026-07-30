@@ -5,10 +5,52 @@ import QtCharts
 import "Theme.js" as Theme
 
 Rectangle {
+    id: root
     color: Theme.bgPanel
 
     property bool loading: false
     property int selectedRangeHours: 24
+    property double minVal: 0
+    property double maxVal: 0
+    property double minTs: 0
+    property double maxTs: 0
+
+    Connections {
+        target: apiClient
+        function onHistoryPointReceived(deviceId, sensor, value, unit, timestamp, anomaly) {
+            historyModel.add_point(deviceId, sensor, value, unit, timestamp, anomaly)
+            var ts = Date.parse(timestamp)
+            lineSeries.append(ts, value)
+            if (anomaly)
+                anomalySeries.append(ts, value)
+
+            if (historyModel.point_count() === 1) {
+                root.minVal = value; root.maxVal = value
+                root.minTs = ts; root.maxTs = ts
+            } else {
+                if (value < root.minVal) root.minVal = value
+                if (value > root.maxVal) root.maxVal = value
+                if (ts < root.minTs) root.minTs = ts
+                if (ts > root.maxTs) root.maxTs = ts
+            }
+        }
+        function onHistoryLoadFinished(ok, error) {
+            loading = false
+            if (!ok) {
+                statusText.text = "Load failed: " + error
+                return
+            }
+            if (historyModel.point_count() > 0) {
+                var margin = (root.maxVal - root.minVal) * 0.1
+                if (margin === 0) margin = 1
+                axisY.min = root.minVal - margin
+                axisY.max = root.maxVal + margin
+                axisX.min = new Date(root.minTs)
+                axisX.max = new Date(root.maxTs)
+            }
+            statusText.text = "Loaded " + historyModel.point_count() + " points"
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -283,7 +325,7 @@ Rectangle {
             // Empty chart hint
             Label {
                 anchors.centerIn: parent
-                visible: historyModel.point_count() === 0 && !loading
+                visible: historyModel.pointCount === 0 && !loading
                 text: "Select a device and range, then Load"
                 font.pixelSize: Theme.fontMd
                 color: Theme.textMuted
@@ -314,8 +356,9 @@ Rectangle {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (historyModel.exportCsv("history_export.csv"))
-                            statusText.text = "Exported CSV"
+                        var path = historyModel.default_export_path("history_export.csv")
+                        if (historyModel.export_csv(path))
+                            statusText.text = "Exported to " + path
                         else
                             statusText.text = "CSV export failed"
                     }
@@ -341,8 +384,9 @@ Rectangle {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (historyModel.exportPdf("history_export.pdf", Window.window))
-                            statusText.text = "Exported PDF"
+                        var path = historyModel.default_export_path("history_export.pdf")
+                        if (historyModel.export_pdf(path, Window.window))
+                            statusText.text = "Exported to " + path
                         else
                             statusText.text = "PDF export failed"
                     }
@@ -384,7 +428,7 @@ Rectangle {
             }
 
             Label {
-                text: historyModel.point_count() + " points"
+                text: historyModel.pointCount + " points"
                 color: Theme.textMuted
                 font.pixelSize: Theme.fontXs
             }
@@ -398,6 +442,7 @@ Rectangle {
         historyModel.clear()
         lineSeries.clear()
         anomalySeries.clear()
+        statusText.text = "Loading…"
 
         var device = deviceModel.data(
             deviceModel.index(deviceCombo.currentIndex, 0),
@@ -405,48 +450,6 @@ Rectangle {
         var sensor = sensorCombo.currentText
         var since = fromDate.text
 
-        var xhr = new XMLHttpRequest()
-        var url = "http://127.0.0.1:8080/api/history/" + device + "/"
-                  + sensor + "?since=" + since
-        xhr.open("GET", url)
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                loading = false
-                if (xhr.status === 200) {
-                    try {
-                        var arr = JSON.parse(xhr.responseText)
-                        var minVal = Infinity, maxVal = -Infinity
-                        var minTs = Infinity, maxTs = -Infinity
-                        for (var i = 0; i < arr.length; i++) {
-                            var pt = arr[i]
-                            historyModel.addPoint(pt.device_id, pt.sensor, pt.value,
-                                                  pt.unit, pt.timestamp, pt.anomaly)
-                            var ts = Date.parse(pt.timestamp)
-                            lineSeries.append(ts, pt.value)
-                            if (pt.anomaly)
-                                anomalySeries.append(ts, pt.value)
-                            if (pt.value < minVal) minVal = pt.value
-                            if (pt.value > maxVal) maxVal = pt.value
-                            if (ts < minTs) minTs = ts
-                            if (ts > maxTs) maxTs = ts
-                        }
-                        if (arr.length > 0) {
-                            var margin = (maxVal - minVal) * 0.1
-                            if (margin === 0) margin = 1
-                            axisY.min = minVal - margin
-                            axisY.max = maxVal + margin
-                            axisX.min = new Date(minTs)
-                            axisX.max = new Date(maxTs)
-                        }
-                        statusText.text = "Loaded " + historyModel.point_count() + " points"
-                    } catch (e) {
-                        statusText.text = "Parse error: " + e
-                    }
-                } else {
-                    statusText.text = "HTTP " + xhr.status
-                }
-            }
-        }
-        xhr.send()
+        apiClient.fetchHistory(device, sensor, since)
     }
 }
