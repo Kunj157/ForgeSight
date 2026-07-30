@@ -127,6 +127,44 @@ void ApiClient::fetchAlarms() {
     });
 }
 
+void ApiClient::fetchHistory(const QString& deviceId, const QString& sensor, const QString& since) {
+    QUrl url = base_url_;
+    url.setPath(QStringLiteral("/api/history/%1/%2").arg(deviceId, sensor));
+    url.setQuery(QStringLiteral("since=%1").arg(since));
+
+    set_busy(true);
+    auto* reply = nam_.get(QNetworkRequest(url));
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        set_busy(false);
+
+        const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (reply->error() != QNetworkReply::NoError || status >= 400) {
+            Q_EMIT historyLoadFinished(false, reply->errorString().isEmpty()
+                                                  ? QStringLiteral("HTTP %1").arg(status)
+                                                  : reply->errorString());
+            return;
+        }
+
+        const auto doc = QJsonDocument::fromJson(reply->readAll());
+        if (!doc.isArray()) {
+            Q_EMIT historyLoadFinished(false, QStringLiteral("Invalid history payload"));
+            return;
+        }
+
+        for (const auto& v : doc.array()) {
+            const auto o = v.toObject();
+            Q_EMIT historyPointReceived(o.value(QStringLiteral("device_id")).toString(),
+                                        o.value(QStringLiteral("sensor")).toString(),
+                                        o.value(QStringLiteral("value")).toDouble(),
+                                        o.value(QStringLiteral("unit")).toString(),
+                                        o.value(QStringLiteral("timestamp")).toString(),
+                                        o.value(QStringLiteral("anomaly")).toBool());
+        }
+        Q_EMIT historyLoadFinished(true, {});
+    });
+}
+
 void ApiClient::acknowledgeAlarm(qint64 id) {
     const QString path = QStringLiteral("/api/alarms/%1/ack").arg(id);
     post_json(path, QByteArrayLiteral("{}"), [this, id](int status, const QByteArray&) {
