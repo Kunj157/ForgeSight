@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <libpq-fe.h>
+
 #include <cstdlib>
 
 #include "ingestion/db_writer.h"
@@ -13,6 +15,22 @@ std::string get_test_conn_string() {
     if (env)
         return env;
     return "dbname=forgesight_test";
+}
+
+bool index_exists(const std::string& conn_str, const std::string& index_name) {
+    auto* conn = PQconnectdb(conn_str.c_str());
+    if (PQstatus(conn) != CONNECTION_OK) {
+        PQfinish(conn);
+        return false;
+    }
+
+    const char* param_values[1] = {index_name.c_str()};
+    auto* res = PQexecParams(conn, "SELECT 1 FROM pg_indexes WHERE indexname = $1", 1, nullptr,
+                             param_values, nullptr, nullptr, 0);
+    bool found = PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0;
+    PQclear(res);
+    PQfinish(conn);
+    return found;
 }
 
 } // namespace
@@ -74,6 +92,14 @@ TEST_F(DbWriterTest, BatchInsert) {
         w.write(make_reading("pump-001", "temperature", 60.0 + i));
     }
     EXPECT_EQ(w.flush(), 5u);
+}
+
+TEST_F(DbWriterTest, CreatesIndexOnDeviceSensorTimestamp) {
+    DbConfig cfg{conn_str};
+    DbWriter w(cfg);
+    ASSERT_TRUE(w.is_connected());
+
+    EXPECT_TRUE(index_exists(conn_str, "idx_readings_device_sensor_timestamp"));
 }
 
 TEST_F(DbWriterTest, BadConnectionFailsGracefully) {
