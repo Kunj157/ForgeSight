@@ -11,14 +11,12 @@ std::vector<DeviceInfo> DeviceService::list_devices() const {
     std::vector<DeviceInfo> devices;
     if (!conn_) return devices;
 
+    // Latest reading per device+sensor so the dashboard can seed tiles.
     auto* res = PQexec(static_cast<PGconn*>(conn_),
-        "SELECT r.device_id, r.value, r.unit, r.timestamp::text "
-        "FROM readings r "
-        "INNER JOIN ("
-        "  SELECT device_id, MAX(timestamp) AS max_ts "
-        "  FROM readings GROUP BY device_id"
-        ") latest ON r.device_id = latest.device_id AND r.timestamp = latest.max_ts "
-        "ORDER BY r.device_id");
+        "SELECT DISTINCT ON (device_id, sensor) "
+        "device_id, sensor, value, unit, timestamp::text, anomaly "
+        "FROM readings "
+        "ORDER BY device_id, sensor, timestamp DESC");
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
         PQclear(res);
@@ -29,13 +27,33 @@ std::vector<DeviceInfo> DeviceService::list_devices() const {
     for (int i = 0; i < rows; ++i) {
         DeviceInfo d;
         d.id = PQgetvalue(res, i, 0);
-        d.last_value = std::stod(PQgetvalue(res, i, 1));
-        d.last_unit = PQgetvalue(res, i, 2);
-        d.last_reading_time = PQgetvalue(res, i, 3);
+        d.name = d.id;
+        d.sensor = PQgetvalue(res, i, 1);
+        d.last_value = std::stod(PQgetvalue(res, i, 2));
+        d.last_unit = PQgetvalue(res, i, 3);
+        d.last_reading_time = PQgetvalue(res, i, 4);
+        d.anomaly = (PQgetvalue(res, i, 5)[0] == 't');
         devices.push_back(std::move(d));
     }
     PQclear(res);
     return devices;
+}
+
+std::vector<ingestion::Reading> DeviceService::list_latest_readings() const {
+    std::vector<ingestion::Reading> readings;
+    auto devices = list_devices();
+    readings.reserve(devices.size());
+    for (const auto& d : devices) {
+        ingestion::Reading r;
+        r.device_id = d.id;
+        r.sensor = d.sensor;
+        r.value = d.last_value;
+        r.unit = d.last_unit;
+        r.timestamp = d.last_reading_time;
+        r.anomaly = d.anomaly;
+        readings.push_back(std::move(r));
+    }
+    return readings;
 }
 
 std::vector<ingestion::Reading> DeviceService::get_history(

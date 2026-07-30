@@ -8,6 +8,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include "alarm-engine/types.h"
 #include "ingestion/reading_parser.h"
 
 using json = nlohmann::json;
@@ -72,6 +73,8 @@ bool ApiServer::start(quint16 httpPort, quint16 wsPort,
 
     last_readings_since_ = QDateTime::currentDateTimeUtc()
         .addSecs(-10).toString(Qt::ISODate).toStdString();
+    last_alarms_since_ = QDateTime::currentDateTimeUtc()
+        .addSecs(-10).toString(Qt::ISODate).toStdString();
 
     auto* timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, [this]() {
@@ -80,6 +83,14 @@ bool ApiServer::start(quint16 httpPort, quint16 wsPort,
             last_readings_since_ = readings.back().timestamp;
             for (const auto& r : readings) {
                 broadcast_reading(r);
+            }
+        }
+
+        auto alarms = ruleService_.get_alarms_since(last_alarms_since_);
+        if (!alarms.empty()) {
+            last_alarms_since_ = alarms.back().timestamp;
+            for (const auto& a : alarms) {
+                broadcast_alarm(a);
             }
         }
     });
@@ -114,6 +125,21 @@ void ApiServer::connect_mqtt(const std::string& broker) {
     } catch (const mqtt::exception& e) {
         spdlog::warn("ApiServer: MQTT not available ({}). Using DB poll only.", e.what());
     }
+}
+
+void ApiServer::broadcast_alarm(const alarm_engine::Alarm& a) {
+    json j = {
+        {"id", a.id},
+        {"rule_id", a.rule_id},
+        {"device_id", a.device_id},
+        {"sensor", a.sensor},
+        {"value", a.value},
+        {"severity", alarm_engine::severity_to_string(a.severity)},
+        {"message", a.message},
+        {"timestamp", a.timestamp},
+        {"acknowledged", a.acknowledged}
+    };
+    broadcaster_.broadcast(j.dump());
 }
 
 void ApiServer::broadcast_reading(const ingestion::Reading& r) {
@@ -158,12 +184,53 @@ void ApiServer::setupRoutes() {
             j.push_back({
                 {"id", d.id},
                 {"name", d.name},
+                {"sensor", d.sensor},
                 {"last_reading_time", d.last_reading_time},
                 {"last_value", d.last_value},
-                {"last_unit", d.last_unit}
+                {"last_unit", d.last_unit},
+                {"anomaly", d.anomaly}
             });
         }
 
+        return QHttpServerResponse("application/json",
+            QByteArray::fromStdString(j.dump()));
+    });
+
+    server_.route("/api/readings/latest", [this](const QHttpServerRequest& req) {
+        (void)req;
+        auto readings = deviceService_.list_latest_readings();
+        json j = json::array();
+        for (const auto& r : readings) {
+            j.push_back({
+                {"device_id", r.device_id},
+                {"sensor", r.sensor},
+                {"value", r.value},
+                {"unit", r.unit},
+                {"timestamp", r.timestamp},
+                {"anomaly", r.anomaly}
+            });
+        }
+        return QHttpServerResponse("application/json",
+            QByteArray::fromStdString(j.dump()));
+    });
+
+    server_.route("/api/alarms", [this](const QHttpServerRequest& req) {
+        (void)req;
+        auto alarms = ruleService_.list_alarms(false);
+        json j = json::array();
+        for (const auto& a : alarms) {
+            j.push_back({
+                {"id", a.id},
+                {"rule_id", a.rule_id},
+                {"device_id", a.device_id},
+                {"sensor", a.sensor},
+                {"value", a.value},
+                {"severity", alarm_engine::severity_to_string(a.severity)},
+                {"message", a.message},
+                {"timestamp", a.timestamp},
+                {"acknowledged", a.acknowledged}
+            });
+        }
         return QHttpServerResponse("application/json",
             QByteArray::fromStdString(j.dump()));
     });
@@ -216,6 +283,24 @@ void ApiServer::setupRoutes() {
 
             return QHttpServerResponse("application/json",
                 QByteArray::fromStdString(j.dump()));
+        });
+
+    server_.route("/api/alarms/<arg>/ack", QHttpServerRequest::Method::Post,
+        [this](const QString& alarmId, const QHttpServerRequest& req) {
+            (void)req;
+            bool ok = false;
+            bool parsed = false;
+            std::int64_t id = alarmId.toLongLong(&parsed);
+            if (parsed) {
+                ok = ruleService_.acknowledge_alarm(id);
+            }
+
+            json j = {{"ok", ok}};
+            return QHttpServerResponse(
+                "application/json",
+                QByteArray::fromStdString(j.dump()),
+                ok ? QHttpServerResponse::StatusCode::Ok
+                   : QHttpServerResponse::StatusCode::NotFound);
         });
 }
 

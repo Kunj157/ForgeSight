@@ -82,6 +82,30 @@ TEST_F(DeviceServiceTest, ListDevicesReturnsFromReadings) {
     EXPECT_TRUE(found);
 }
 
+TEST_F(DeviceServiceTest, ListLatestReadingsReturnsPerSensor) {
+    seed_reading(conn, "svc-test", "temperature", 65.0, "2026-07-26T10:00:00Z");
+    seed_reading(conn, "svc-test", "pressure", 2.5, "2026-07-26T10:00:01Z");
+    seed_reading(conn, "svc-test", "temperature", 70.0, "2026-07-26T10:00:02Z");
+
+    api::DeviceService svc(conn);
+    auto latest = svc.list_latest_readings();
+
+    int temp = 0, pressure = 0;
+    for (const auto& r : latest) {
+        if (r.device_id != "svc-test") continue;
+        if (r.sensor == "temperature") {
+            ++temp;
+            EXPECT_DOUBLE_EQ(r.value, 70.0);
+        }
+        if (r.sensor == "pressure") {
+            ++pressure;
+            EXPECT_DOUBLE_EQ(r.value, 2.5);
+        }
+    }
+    EXPECT_EQ(temp, 1);
+    EXPECT_EQ(pressure, 1);
+}
+
 TEST_F(DeviceServiceTest, GetHistoryReturnsReadings) {
     seed_reading(conn, "svc-test", "temperature", 65.0, "2026-07-26T10:00:00Z");
     seed_reading(conn, "svc-test", "temperature", 70.0, "2026-07-26T10:01:00Z");

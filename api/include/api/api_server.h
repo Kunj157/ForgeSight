@@ -29,6 +29,7 @@ public:
 
     WebSocketBroadcaster* broadcaster() { return &broadcaster_; }
     void broadcast_reading(const ingestion::Reading& r);
+    void broadcast_alarm(const alarm_engine::Alarm& a);
 
 private:
     void setupRoutes();
@@ -44,6 +45,7 @@ private:
     RuleService ruleService_;
     WebSocketBroadcaster broadcaster_;
     std::string last_readings_since_;
+    std::string last_alarms_since_;
 };
 
 }  // namespace api

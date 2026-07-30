@@ -148,4 +148,104 @@ bool RuleService::delete_rule(std::int64_t id) {
     return ok;
 }
 
+std::vector<alarm_engine::Alarm> RuleService::get_alarms_since(
+    const std::string& since) const {
+
+    std::vector<alarm_engine::Alarm> alarms;
+    if (!conn_) return alarms;
+
+    const char* params[1] = {since.c_str()};
+    int lengths[1] = {static_cast<int>(since.size())};
+    int formats[1] = {0};
+
+    auto* res = PQexecParams(
+        static_cast<PGconn*>(conn_),
+        "SELECT id, rule_id, device_id, sensor, value, severity, message, "
+        "timestamp::text, acknowledged FROM alarms "
+        "WHERE timestamp > $1 ORDER BY timestamp",
+        1, nullptr, params, lengths, formats, 0);
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        PQclear(res);
+        return alarms;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i) {
+        alarm_engine::Alarm a;
+        a.id = std::stoll(PQgetvalue(res, i, 0));
+        a.rule_id = std::stoll(PQgetvalue(res, i, 1));
+        a.device_id = PQgetvalue(res, i, 2);
+        a.sensor = PQgetvalue(res, i, 3);
+        a.value = std::stod(PQgetvalue(res, i, 4));
+        a.severity = alarm_engine::severity_from_string(PQgetvalue(res, i, 5));
+        a.message = PQgetvalue(res, i, 6);
+        a.timestamp = PQgetvalue(res, i, 7);
+        a.acknowledged = (PQgetvalue(res, i, 8)[0] == 't');
+        alarms.push_back(std::move(a));
+    }
+
+    PQclear(res);
+    return alarms;
+}
+
+std::vector<alarm_engine::Alarm> RuleService::list_alarms(
+    bool unacknowledged_only) const {
+
+    std::vector<alarm_engine::Alarm> alarms;
+    if (!conn_) return alarms;
+
+    const char* sql = unacknowledged_only
+        ? "SELECT id, rule_id, device_id, sensor, value, severity, message, "
+          "timestamp::text, acknowledged FROM alarms "
+          "WHERE acknowledged = FALSE ORDER BY timestamp DESC LIMIT 200"
+        : "SELECT id, rule_id, device_id, sensor, value, severity, message, "
+          "timestamp::text, acknowledged FROM alarms "
+          "ORDER BY timestamp DESC LIMIT 200";
+
+    auto* res = PQexec(static_cast<PGconn*>(conn_), sql);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        PQclear(res);
+        return alarms;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i) {
+        alarm_engine::Alarm a;
+        a.id = std::stoll(PQgetvalue(res, i, 0));
+        a.rule_id = std::stoll(PQgetvalue(res, i, 1));
+        a.device_id = PQgetvalue(res, i, 2);
+        a.sensor = PQgetvalue(res, i, 3);
+        a.value = std::stod(PQgetvalue(res, i, 4));
+        a.severity = alarm_engine::severity_from_string(PQgetvalue(res, i, 5));
+        a.message = PQgetvalue(res, i, 6);
+        a.timestamp = PQgetvalue(res, i, 7);
+        a.acknowledged = (PQgetvalue(res, i, 8)[0] == 't');
+        alarms.push_back(std::move(a));
+    }
+
+    PQclear(res);
+    return alarms;
+}
+
+bool RuleService::acknowledge_alarm(std::int64_t id) {
+    if (!conn_) return false;
+
+    auto id_str = std::to_string(id);
+    const char* params[1] = {id_str.c_str()};
+    int lengths[1] = {static_cast<int>(id_str.size())};
+    int formats[1] = {0};
+
+    auto* res = PQexecParams(
+        static_cast<PGconn*>(conn_),
+        "UPDATE alarms SET acknowledged = TRUE, acknowledged_at = NOW() "
+        "WHERE id = $1 AND acknowledged = FALSE",
+        1, nullptr, params, lengths, formats, 0);
+
+    bool ok = PQresultStatus(res) == PGRES_COMMAND_OK
+              && std::string(PQcmdTuples(res)) == "1";
+    PQclear(res);
+    return ok;
+}
+
 }  // namespace api
