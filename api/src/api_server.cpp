@@ -17,8 +17,6 @@ using json = nlohmann::json;
 
 namespace api {
 
-namespace {
-
 class MqttBridge : public mqtt::callback {
   public:
     MqttBridge(ApiServer* server) : server_(server) {}
@@ -39,8 +37,6 @@ class MqttBridge : public mqtt::callback {
   private:
     ApiServer* server_;
 };
-
-} // namespace
 
 ApiServer::ApiServer(void* conn, QObject* parent)
     : QObject(parent), conn_(conn), deviceService_(conn), ruleService_(conn) {}
@@ -117,8 +113,8 @@ void ApiServer::stop() {
 void ApiServer::connect_mqtt(const std::string& broker) {
     try {
         mqtt_ = std::make_unique<mqtt::async_client>(broker, "forgesight-api");
-        auto* bridge = new MqttBridge(this);
-        mqtt_->set_callback(*bridge);
+        mqttBridge_ = std::make_unique<MqttBridge>(this);
+        mqtt_->set_callback(*mqttBridge_);
 
         mqtt::connect_options connOpts;
         connOpts.set_keep_alive_interval(30);

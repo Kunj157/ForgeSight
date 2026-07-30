@@ -41,6 +41,18 @@ TEST(ApiServerTest, StartStop) {
     server.stop();
 }
 
+TEST(ApiServerTest, RestartReconnectsMqttWithoutLeakingBridge) {
+    // Each start() attempts an MQTT connection (and thus allocates the
+    // callback bridge) even when no broker is reachable. Restarting must not
+    // leak the previous bridge instance — run under ASan to verify.
+    api::ApiServer server(nullptr);
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_TRUE(server.start(0));
+        EXPECT_GT(server.port(), 0);
+        server.stop();
+    }
+}
+
 TEST(ApiServerTest, DevicesEndpointReturnsArray) {
     api::ApiServer server(nullptr);
     ASSERT_TRUE(server.start(0));
