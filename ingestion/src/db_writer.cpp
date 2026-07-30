@@ -44,7 +44,18 @@ bool DbWriter::ensure_table() {
         spdlog::error("Failed to ensure readings table: {}",
                       PQerrorMessage(static_cast<PGconn*>(conn_)));
     }
-    return ok;
+
+    const char* index_ddl = "CREATE INDEX IF NOT EXISTS idx_readings_device_sensor_timestamp "
+                            "ON readings (device_id, sensor, timestamp)";
+    auto* idx_res = PQexec(static_cast<PGconn*>(conn_), index_ddl);
+    bool idx_ok = PQresultStatus(idx_res) == PGRES_COMMAND_OK;
+    PQclear(idx_res);
+    if (!idx_ok) {
+        spdlog::error("Failed to create readings index: {}",
+                      PQerrorMessage(static_cast<PGconn*>(conn_)));
+    }
+
+    return ok && idx_ok;
 }
 
 bool DbWriter::is_connected() const {
