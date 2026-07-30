@@ -7,13 +7,42 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: forgesight_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d forgesight_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ qt6-base-dev qt6-declarative-dev
+          sudo apt-get install -y \
+            cmake g++ pkg-config \
+            nlohmann-json3-dev libspdlog-dev libpq-dev \
+            libpaho-mqtt-dev libpaho-mqttpp-dev \
+            qt6-base-dev qt6-declarative-dev qt6-charts-dev \
+            qt6-httpserver-dev qt6-websockets-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtcharts \
+            qml6-module-qtquick-window \
+            qml6-module-qtqml \
+            qml6-module-qtqml-workerscript
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Debug
@@ -23,6 +52,10 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+        env:
+          QML2_IMPORT_PATH: /usr/lib/x86_64-linux-gnu/qt6/qml
+          QT_QPA_PLATFORM: offscreen
+          FORGESIGHT_TEST_DB: "host=127.0.0.1 port=5432 dbname=forgesight_test user=postgres password=postgres"
 
   lint:
     runs-on: ubuntu-24.04
@@ -30,7 +63,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-format
+        run: |
+          python3 -m pip install --user clang-format==22.1.8
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check formatting
-        run: find src ui -name '*.cpp' -o -name '*.h' | xargs clang-format --dry-run --Werror
+        run: |
+          find ingestion alarm-engine api ui tests \
+            \( -name '*.cpp' -o -name '*.h' \) \
+            -print0 | xargs -0 clang-format --dry-run --Werror

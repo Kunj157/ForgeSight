@@ -8,7 +8,8 @@ using namespace alarm_engine;
 namespace {
 std::string get_test_db() {
     const char* env = std::getenv("FORGESIGHT_TEST_DB");
-    if (env) return env;
+    if (env)
+        return env;
     return "dbname=forgesight_test";
 }
 
@@ -17,10 +18,10 @@ bool db_available() {
     AlarmStore store(cfg);
     return store.is_connected();
 }
-}  // namespace
+} // namespace
 
 class AlarmStoreTest : public ::testing::Test {
-protected:
+  protected:
     std::string conn_str = get_test_db();
 
     void SetUp() override {

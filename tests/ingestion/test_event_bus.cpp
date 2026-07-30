@@ -86,6 +86,7 @@ TEST(EventBusTest, ThreadSafePublish) {
         });
     }
 
-    for (auto& t : threads) t.join();
+    for (auto& t : threads)
+        t.join();
     EXPECT_EQ(count.load(), kThreads * kPerThread);
 }

@@ -15,8 +15,8 @@ struct ParseError {
 using ParseResult = std::variant<ParseError, Reading>;
 
 class ReadingParser {
-public:
+  public:
     ParseResult parse(const std::string& json_payload) const;
 };
 
-}  // namespace ingestion
+} // namespace ingestion

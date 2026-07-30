@@ -31,9 +31,8 @@ TEST(ThreadPoolTest, MultipleTasks) {
     std::vector<std::future<void>> futures;
     futures.reserve(kTasks);
     for (int i = 0; i < kTasks; ++i) {
-        futures.push_back(pool.submit([&counter]() {
-            counter.fetch_add(1, std::memory_order_relaxed);
-        }));
+        futures.push_back(
+            pool.submit([&counter]() { counter.fetch_add(1, std::memory_order_relaxed); }));
     }
     for (auto& f : futures) {
         f.get();
@@ -46,9 +45,7 @@ TEST(ThreadPoolTest, ShutdownDrainsQueue) {
     std::atomic<int> counter{0};
 
     for (int i = 0; i < 10; ++i) {
-        pool.submit([&counter]() {
-            counter.fetch_add(1, std::memory_order_relaxed);
-        });
+        pool.submit([&counter]() { counter.fetch_add(1, std::memory_order_relaxed); });
     }
 
     pool.shutdown();
@@ -82,8 +79,6 @@ TEST(ThreadPoolTest, PendingTasksCount) {
 
 TEST(ThreadPoolTest, TaskExceptionPropagates) {
     ThreadPool pool(1);
-    auto fut = pool.submit([]() {
-        throw std::runtime_error("test error");
-    });
+    auto fut = pool.submit([]() { throw std::runtime_error("test error"); });
     EXPECT_THROW(fut.get(), std::runtime_error);
 }

@@ -22,8 +22,10 @@ class MqttPublisher:
 
     def connect(self) -> None:
         self._client.connect(self._config.broker_host, self._config.broker_port)
+        self._client.loop_start()
 
     def disconnect(self) -> None:
+        self._client.loop_stop()
         self._client.disconnect()
 
     def publish_batch(self, readings: List[Dict[str, Any]]) -> None:

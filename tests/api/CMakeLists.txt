@@ -8,15 +8,19 @@ FetchContent_MakeAvailable(googletest)
 
 include(GoogleTest)
 
+find_package(Qt6 REQUIRED COMPONENTS Network)
+
 add_executable(api_tests
     test_ws_broadcaster.cpp
     test_services.cpp
+    test_api_server.cpp
 )
 
 target_link_libraries(api_tests PRIVATE
     api_lib
     GTest::gtest_main
     nlohmann_json::nlohmann_json
+    Qt6::Network
 )
 
 gtest_discover_tests(api_tests)

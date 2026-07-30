@@ -26,4 +26,4 @@ std::size_t WebSocketBroadcaster::connection_count() const {
     return connections_.size();
 }
 
-}  // namespace api
+} // namespace api

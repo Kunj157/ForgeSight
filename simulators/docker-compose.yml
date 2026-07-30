@@ -5,5 +5,3 @@ services:
       - "1884:1883"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
-    profiles:
-      - docker-broker

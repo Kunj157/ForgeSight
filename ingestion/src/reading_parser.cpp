@@ -54,4 +54,4 @@ ParseResult ReadingParser::parse(const std::string& json_payload) const {
     return r;
 }
 
-}  // namespace ingestion
+} // namespace ingestion

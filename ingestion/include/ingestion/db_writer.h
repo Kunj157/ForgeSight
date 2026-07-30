@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -13,7 +14,7 @@ struct DbConfig {
 };
 
 class DbWriter {
-public:
+  public:
     explicit DbWriter(const DbConfig& config);
     ~DbWriter();
 
@@ -24,13 +25,14 @@ public:
     std::size_t flush();
     bool is_connected() const;
 
-private:
+  private:
     bool ensure_table();
     bool insert_batch(std::vector<Reading>& batch);
 
     DbConfig config_;
     void* conn_ = nullptr;
     std::vector<Reading> buffer_;
+    mutable std::mutex mutex_;
 };
 
-}  // namespace ingestion
+} // namespace ingestion

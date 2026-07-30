@@ -5,7 +5,7 @@
 using namespace ingestion;
 
 class ReadingParserTest : public ::testing::Test {
-protected:
+  protected:
     ReadingParser parser;
 };
 
