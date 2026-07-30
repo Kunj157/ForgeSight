@@ -15,6 +15,8 @@
 
 namespace api {
 
+class MqttBridge;
+
 class ApiServer : public QObject {
     Q_OBJECT
   public:
@@ -40,6 +42,7 @@ class ApiServer : public QObject {
     QHttpServer server_;
     std::unique_ptr<QWebSocketServer> wsServer_;
     std::unique_ptr<mqtt::async_client> mqtt_;
+    std::unique_ptr<MqttBridge> mqttBridge_;
     DeviceService deviceService_;
     RuleService ruleService_;
     WebSocketBroadcaster broadcaster_;
