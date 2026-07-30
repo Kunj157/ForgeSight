@@ -16,7 +16,7 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 | Local live demo (sim → MQTT → ingest → DB → API/WS → UI) | **Working** via `scripts/dev-up.sh` |
 | Phases 0–6 (MVP core) | **Mostly done**, with holes listed below |
 | Phases 7–9 (offline, packaging, release) | **Not started** |
-| CI on PR #9 | Hardened in branch — verify green after push |
+| CI on PR #9 | **Green** (build + lint) |
 | Production-grade | **Not yet** — reliable local demo, not shippable |
 
 **How to run today**
@@ -69,7 +69,7 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ### P0 — Unblock merge / reliability (do next session first)
 
-1. **Fix CI on PR #9** ✅ (workflow + clang-format applied; await Actions)  
+1. **Fix CI on PR #9** ✅  
    - Install `libpq-dev`, Paho, spdlog (whatever CMake needs).  
    - Add Postgres service for DB tests (`forgesight_test`).  
    - Fix lint `find` paths / formatting.  
