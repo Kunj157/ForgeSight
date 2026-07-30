@@ -54,6 +54,7 @@ bool DbWriter::is_connected() const {
 
 bool DbWriter::write(const Reading& reading) {
     if (!conn_) return false;
+    std::lock_guard<std::mutex> lock(mutex_);
     buffer_.push_back(reading);
     if (buffer_.size() >= config_.batch_size) {
         return insert_batch(buffer_);
@@ -62,6 +63,7 @@ bool DbWriter::write(const Reading& reading) {
 }
 
 std::size_t DbWriter::flush() {
+    std::lock_guard<std::mutex> lock(mutex_);
     if (buffer_.empty()) return 0;
     std::size_t count = buffer_.size();
     insert_batch(buffer_);

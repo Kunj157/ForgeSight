@@ -125,7 +125,12 @@ int main(int argc, char* argv[]) {
         spdlog::info("Subscribed to {}", cfg.mqtt_topic);
 
         while (g_running.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            // Flush partial batches so history/alarms see data promptly.
+            auto n = db_writer.flush();
+            if (n > 0) {
+                spdlog::debug("Flushed {} buffered readings", n);
+            }
         }
     } catch (const mqtt::exception& e) {
         spdlog::error("MQTT error: {}", e.what());

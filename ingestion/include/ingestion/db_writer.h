@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,7 @@ private:
     DbConfig config_;
     void* conn_ = nullptr;
     std::vector<Reading> buffer_;
+    mutable std::mutex mutex_;
 };
 
 }  // namespace ingestion
