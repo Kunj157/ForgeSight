@@ -58,13 +58,16 @@ void DeviceModel::updateDevice(const QString& device_id,
         beginInsertRows(QModelIndex(), devices_.size(), devices_.size());
         devices_.append({device_id, sensor, value, unit, timestamp, anomaly, status});
         endInsertRows();
+        Q_EMIT countChanged();
     }
 }
 
 void DeviceModel::clear() {
+    if (devices_.isEmpty()) return;
     beginResetModel();
     devices_.clear();
     endResetModel();
+    Q_EMIT countChanged();
 }
 
 QString DeviceModel::device_status(const QString& device_id) const {

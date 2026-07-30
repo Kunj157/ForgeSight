@@ -1,5 +1,10 @@
 #include "ui/history_model.h"
 
+#include "ui/csv_export.h"
+#include "ui/pdf_export.h"
+
+#include <QQuickWindow>
+
 namespace ui {
 
 HistoryModel::HistoryModel(QObject* parent)
@@ -48,6 +53,14 @@ void HistoryModel::clear() {
     beginResetModel();
     points_.clear();
     endResetModel();
+}
+
+bool HistoryModel::export_csv(const QString& path) {
+    return CsvExport::to_file(path, points_);
+}
+
+bool HistoryModel::export_pdf(const QString& path, QQuickWindow* window) {
+    return PdfExport::export_chart(path, window, points_);
 }
 
 }  // namespace ui

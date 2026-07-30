@@ -18,6 +18,7 @@ struct DeviceState {
 
 class DeviceModel : public QAbstractListModel {
     Q_OBJECT
+    Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
     enum Roles {
@@ -36,12 +37,17 @@ public:
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
+    int count() const { return devices_.size(); }
+
     Q_INVOKABLE void updateDevice(const QString& device_id, const QString& sensor,
                                    double value, const QString& unit,
                                    const QString& timestamp, bool anomaly);
     void clear();
 
     Q_INVOKABLE QString device_status(const QString& device_id) const;
+
+Q_SIGNALS:
+    void countChanged();
 
 private:
     int find_device(const QString& device_id, const QString& sensor) const;

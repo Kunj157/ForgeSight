@@ -48,6 +48,8 @@ void AlarmModel::add_alarm(qint64 id, const QString& device_id,
     alarms_.append({id, device_id, sensor, value, severity, message, timestamp, false});
     endInsertRows();
     Q_EMIT alarmAdded();
+    Q_EMIT countChanged();
+    Q_EMIT unacknowledgedCountChanged();
 }
 
 void AlarmModel::acknowledge(qint64 alarm_id) {
@@ -57,12 +59,16 @@ void AlarmModel::acknowledge(qint64 alarm_id) {
     auto idx = index(row);
     Q_EMIT dataChanged(idx, idx, {AcknowledgedRole});
     Q_EMIT alarmAcknowledged(alarm_id);
+    Q_EMIT unacknowledgedCountChanged();
 }
 
 void AlarmModel::clear() {
+    if (alarms_.isEmpty()) return;
     beginResetModel();
     alarms_.clear();
     endResetModel();
+    Q_EMIT countChanged();
+    Q_EMIT unacknowledgedCountChanged();
 }
 
 int AlarmModel::unacknowledged_count() const {

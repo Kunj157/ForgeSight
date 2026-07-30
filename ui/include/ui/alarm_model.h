@@ -19,6 +19,9 @@ struct AlarmEntry {
 
 class AlarmModel : public QAbstractListModel {
     Q_OBJECT
+    Q_PROPERTY(int count READ count NOTIFY countChanged)
+    Q_PROPERTY(int unacknowledgedCount READ unacknowledged_count
+               NOTIFY unacknowledgedCountChanged)
 
 public:
     enum Roles {
@@ -38,16 +41,21 @@ public:
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void add_alarm(qint64 id, const QString& device_id, const QString& sensor,
-                   double value, const QString& severity, const QString& message,
-                   const QString& timestamp);
+    int count() const { return alarms_.size(); }
+
+    Q_INVOKABLE void add_alarm(qint64 id, const QString& device_id,
+                               const QString& sensor, double value,
+                               const QString& severity, const QString& message,
+                               const QString& timestamp);
     Q_INVOKABLE void acknowledge(qint64 alarm_id);
-    void clear();
+    Q_INVOKABLE void clear();
     int unacknowledged_count() const;
 
 Q_SIGNALS:
     void alarmAdded();
     void alarmAcknowledged(qint64 alarm_id);
+    void countChanged();
+    void unacknowledgedCountChanged();
 
 private:
     int find_alarm(qint64 id) const;
