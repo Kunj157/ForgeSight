@@ -2,15 +2,16 @@
 
 #include <libpq-fe.h>
 
+#include "alarm-engine/types.h"
 #include "api/device_service.h"
 #include "api/rule_service.h"
-#include "alarm-engine/types.h"
 
 namespace {
 
 std::string get_test_db() {
     const char* env = std::getenv("FORGESIGHT_TEST_DB");
-    if (env) return env;
+    if (env)
+        return env;
     return "dbname=forgesight_test";
 }
 
@@ -23,19 +24,18 @@ void* connect_db() {
     return conn;
 }
 
-void seed_reading(void* conn, const std::string& device, const std::string& sensor,
-                  double value, const std::string& ts) {
-    const char* params[4] = {device.c_str(), sensor.c_str(),
-                              std::to_string(value).c_str(), ts.c_str()};
-    int lengths[4] = {
-        static_cast<int>(device.size()), static_cast<int>(sensor.size()),
-        static_cast<int>(std::to_string(value).size()), static_cast<int>(ts.size())
-    };
+void seed_reading(void* conn, const std::string& device, const std::string& sensor, double value,
+                  const std::string& ts) {
+    const char* params[4] = {device.c_str(), sensor.c_str(), std::to_string(value).c_str(),
+                             ts.c_str()};
+    int lengths[4] = {static_cast<int>(device.size()), static_cast<int>(sensor.size()),
+                      static_cast<int>(std::to_string(value).size()), static_cast<int>(ts.size())};
     int formats[4] = {0, 0, 0, 0};
-    auto* res = PQexecParams(static_cast<PGconn*>(conn),
-        "INSERT INTO readings (device_id, sensor, value, unit, timestamp, anomaly) "
-        "VALUES ($1, $2, $3, '°C', $4, false)",
-        4, nullptr, params, lengths, formats, 0);
+    auto* res =
+        PQexecParams(static_cast<PGconn*>(conn),
+                     "INSERT INTO readings (device_id, sensor, value, unit, timestamp, anomaly) "
+                     "VALUES ($1, $2, $3, '°C', $4, false)",
+                     4, nullptr, params, lengths, formats, 0);
     PQclear(res);
 }
 
@@ -43,28 +43,31 @@ void seed_rule(void* conn, const std::string& device, const std::string& sensor)
     const char* params[2] = {device.c_str(), sensor.c_str()};
     int lengths[2] = {static_cast<int>(device.size()), static_cast<int>(sensor.size())};
     int formats[2] = {0, 0};
-    auto* res = PQexecParams(static_cast<PGconn*>(conn),
-        "INSERT INTO alarm_rules (device_id, sensor, condition, threshold, severity) "
-        "VALUES ($1, $2, 'gt', 80.0, 'warning')",
-        2, nullptr, params, lengths, formats, 0);
+    auto* res =
+        PQexecParams(static_cast<PGconn*>(conn),
+                     "INSERT INTO alarm_rules (device_id, sensor, condition, threshold, severity) "
+                     "VALUES ($1, $2, 'gt', 80.0, 'warning')",
+                     2, nullptr, params, lengths, formats, 0);
     PQclear(res);
 }
 
-}  // namespace
+} // namespace
 
 class DeviceServiceTest : public ::testing::Test {
-protected:
+  protected:
     void* conn = nullptr;
 
     void SetUp() override {
         conn = connect_db();
-        if (!conn) GTEST_SKIP() << "Test DB not available";
+        if (!conn)
+            GTEST_SKIP() << "Test DB not available";
     }
 
     void TearDown() override {
         if (conn) {
             PQexec(static_cast<PGconn*>(conn), "DELETE FROM readings WHERE device_id = 'svc-test'");
-            PQexec(static_cast<PGconn*>(conn), "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
+            PQexec(static_cast<PGconn*>(conn),
+                   "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
             PQfinish(static_cast<PGconn*>(conn));
         }
     }
@@ -77,7 +80,10 @@ TEST_F(DeviceServiceTest, ListDevicesReturnsFromReadings) {
 
     bool found = false;
     for (const auto& d : devices) {
-        if (d.id == "svc-test") { found = true; break; }
+        if (d.id == "svc-test") {
+            found = true;
+            break;
+        }
     }
     EXPECT_TRUE(found);
 }
@@ -92,7 +98,8 @@ TEST_F(DeviceServiceTest, ListLatestReadingsReturnsPerSensor) {
 
     int temp = 0, pressure = 0;
     for (const auto& r : latest) {
-        if (r.device_id != "svc-test") continue;
+        if (r.device_id != "svc-test")
+            continue;
         if (r.sensor == "temperature") {
             ++temp;
             EXPECT_DOUBLE_EQ(r.value, 70.0);
@@ -133,17 +140,19 @@ TEST_F(DeviceServiceTest, NullConnReturnsEmpty) {
 }
 
 class RuleServiceTest : public ::testing::Test {
-protected:
+  protected:
     void* conn = nullptr;
 
     void SetUp() override {
         conn = connect_db();
-        if (!conn) GTEST_SKIP() << "Test DB not available";
+        if (!conn)
+            GTEST_SKIP() << "Test DB not available";
     }
 
     void TearDown() override {
         if (conn) {
-            PQexec(static_cast<PGconn*>(conn), "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
+            PQexec(static_cast<PGconn*>(conn),
+                   "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
             PQfinish(static_cast<PGconn*>(conn));
         }
     }
@@ -164,7 +173,10 @@ TEST_F(RuleServiceTest, CreateAndListRules) {
     auto rules = svc.list_rules();
     bool found = false;
     for (const auto& rule : rules) {
-        if (rule.id == id) { found = true; break; }
+        if (rule.id == id) {
+            found = true;
+            break;
+        }
     }
     EXPECT_TRUE(found);
 }

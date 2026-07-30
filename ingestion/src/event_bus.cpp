@@ -19,4 +19,4 @@ std::size_t EventBus::subscriber_count() const {
     return handlers_.size();
 }
 
-}  // namespace ingestion
+} // namespace ingestion

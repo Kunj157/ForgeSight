@@ -6,11 +6,11 @@
 #include <QTextStream>
 
 #include "ui/csv_export.h"
-#include "ui/pdf_export.h"
 #include "ui/history_model.h"
+#include "ui/pdf_export.h"
 
 class ExportTest : public ::testing::Test {
-protected:
+  protected:
     static void SetUpTestSuite() {
         static int argc = 0;
         static char* argv[] = {nullptr};

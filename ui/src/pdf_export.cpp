@@ -8,7 +8,7 @@
 namespace ui {
 
 bool PdfExport::export_chart(const QString& filePath, QQuickWindow* window,
-                              const QVector<HistoryPoint>& points) {
+                             const QVector<HistoryPoint>& points) {
     QPrinter printer(QPrinter::HighResolution);
     printer.setOutputFormat(QPrinter::PdfFormat);
     printer.setOutputFileName(filePath);
@@ -37,10 +37,10 @@ bool PdfExport::export_chart(const QString& filePath, QQuickWindow* window,
         deviceFont.setPointSize(9);
         painter.setFont(deviceFont);
         painter.drawText(50, 110,
-            QString("Device: %1 | Sensor: %2 | Points: %3")
-                .arg(points.first().deviceId)
-                .arg(points.first().sensor)
-                .arg(points.size()));
+                         QString("Device: %1 | Sensor: %2 | Points: %3")
+                             .arg(points.first().deviceId)
+                             .arg(points.first().sensor)
+                             .arg(points.size()));
     }
 
     int y = 150;
@@ -82,8 +82,7 @@ bool PdfExport::export_chart(const QString& filePath, QQuickWindow* window,
 
     if (count < points.size()) {
         painter.setPen(Qt::black);
-        painter.drawText(50, y + 10,
-            QString("... and %1 more points").arg(points.size() - count));
+        painter.drawText(50, y + 10, QString("... and %1 more points").arg(points.size() - count));
     }
 
     if (window) {
@@ -100,4 +99,4 @@ bool PdfExport::export_chart(const QString& filePath, QQuickWindow* window,
     return true;
 }
 
-}  // namespace ui
+} // namespace ui

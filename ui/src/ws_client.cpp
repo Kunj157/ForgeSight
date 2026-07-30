@@ -7,40 +7,46 @@
 
 namespace ui {
 
-WsClient::WsClient(QObject* parent)
-    : QObject(parent) {
+WsClient::WsClient(QObject* parent) : QObject(parent) {
     connect(&socket_, &QWebSocket::connected, this, &WsClient::on_connected);
     connect(&socket_, &QWebSocket::disconnected, this, &WsClient::on_disconnected);
-    connect(&socket_, &QWebSocket::textMessageReceived,
-            this, &WsClient::on_text_message_received);
-    connect(&socket_,
-            QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error),
-            this, &WsClient::on_error);
+    connect(&socket_, &QWebSocket::textMessageReceived, this, &WsClient::on_text_message_received);
+    connect(&socket_, QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error), this,
+            &WsClient::on_error);
 #ifndef QT_NO_SSL
-    connect(&socket_, QOverload<const QList<QSslError>&>::of(&QWebSocket::sslErrors),
-            this, &WsClient::on_ssl_errors);
+    connect(&socket_, QOverload<const QList<QSslError>&>::of(&QWebSocket::sslErrors), this,
+            &WsClient::on_ssl_errors);
 #endif
 
     reconnect_timer_.setSingleShot(true);
     connect(&reconnect_timer_, &QTimer::timeout, this, &WsClient::try_reconnect);
 }
 
-bool WsClient::is_connected() const { return connected_; }
+bool WsClient::is_connected() const {
+    return connected_;
+}
 
-QUrl WsClient::url() const { return url_; }
+QUrl WsClient::url() const {
+    return url_;
+}
 
 void WsClient::set_url(const QUrl& url) {
-    if (url_ == url) return;
+    if (url_ == url)
+        return;
     url_ = url;
     Q_EMIT urlChanged();
 }
 
-bool WsClient::auto_reconnect() const { return auto_reconnect_; }
+bool WsClient::auto_reconnect() const {
+    return auto_reconnect_;
+}
 
 void WsClient::set_auto_reconnect(bool enabled) {
-    if (auto_reconnect_ == enabled) return;
+    if (auto_reconnect_ == enabled)
+        return;
     auto_reconnect_ = enabled;
-    if (!enabled) reconnect_timer_.stop();
+    if (!enabled)
+        reconnect_timer_.stop();
     Q_EMIT autoReconnectChanged();
 }
 
@@ -72,7 +78,8 @@ void WsClient::disconnectFromServer() {
 }
 
 void WsClient::try_reconnect() {
-    if (!auto_reconnect_ || manual_disconnect_ || url_.isEmpty()) return;
+    if (!auto_reconnect_ || manual_disconnect_ || url_.isEmpty())
+        return;
     if (socket_.state() == QAbstractSocket::ConnectedState ||
         socket_.state() == QAbstractSocket::ConnectingState) {
         return;
@@ -108,11 +115,11 @@ void WsClient::on_error(QAbstractSocket::SocketError) {
 
 void WsClient::on_text_message_received(const QString& message) {
     auto doc = QJsonDocument::fromJson(message.toUtf8());
-    if (!doc.isObject()) return;
+    if (!doc.isObject())
+        return;
     auto obj = doc.object();
 
-    if (obj.contains(QStringLiteral("device_id")) &&
-        obj.contains(QStringLiteral("sensor")) &&
+    if (obj.contains(QStringLiteral("device_id")) && obj.contains(QStringLiteral("sensor")) &&
         !obj.contains(QStringLiteral("severity"))) {
         Q_EMIT readingReceived(message);
     }
@@ -128,4 +135,4 @@ void WsClient::on_ssl_errors(const QList<QSslError>& errors) {
 #endif
 }
 
-}  // namespace ui
+} // namespace ui

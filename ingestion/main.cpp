@@ -37,10 +37,14 @@ AppConfig parse_args(int argc, char* argv[]) {
     AppConfig cfg;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "--broker" && i + 1 < argc) cfg.mqtt_broker = argv[++i];
-        else if (arg == "--topic" && i + 1 < argc) cfg.mqtt_topic = argv[++i];
-        else if (arg == "--db" && i + 1 < argc) cfg.db_conn_string = argv[++i];
-        else if (arg == "--workers" && i + 1 < argc) cfg.worker_threads = std::stoul(argv[++i]);
+        if (arg == "--broker" && i + 1 < argc)
+            cfg.mqtt_broker = argv[++i];
+        else if (arg == "--topic" && i + 1 < argc)
+            cfg.mqtt_topic = argv[++i];
+        else if (arg == "--db" && i + 1 < argc)
+            cfg.db_conn_string = argv[++i];
+        else if (arg == "--workers" && i + 1 < argc)
+            cfg.worker_threads = std::stoul(argv[++i]);
         else if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: ingestion [options]\n"
                       << "  --broker URL      MQTT broker (default: tcp://localhost:1883)\n"
@@ -54,17 +58,15 @@ AppConfig parse_args(int argc, char* argv[]) {
 }
 
 class IngestionCallback : public virtual mqtt::callback {
-public:
-    IngestionCallback(ThreadPool& pool, EventBus& bus,
-                      ReadingParser& parser, DbWriter& db)
+  public:
+    IngestionCallback(ThreadPool& pool, EventBus& bus, ReadingParser& parser, DbWriter& db)
         : pool_(pool), bus_(bus), parser_(parser), db_(db) {}
 
     void message_arrived(mqtt::const_message_ptr msg) override {
         auto payload = msg->to_string();
         auto result = parser_.parse(payload);
         if (std::holds_alternative<ParseError>(result)) {
-            spdlog::warn("Malformed message: {}",
-                         std::get<ParseError>(result).reason);
+            spdlog::warn("Malformed message: {}", std::get<ParseError>(result).reason);
             return;
         }
 
@@ -79,14 +81,14 @@ public:
         spdlog::error("MQTT connection lost: {}", cause);
     }
 
-private:
+  private:
     ThreadPool& pool_;
     EventBus& bus_;
     ReadingParser& parser_;
     DbWriter& db_;
 };
 
-}  // namespace
+} // namespace
 
 int main(int argc, char* argv[]) {
     spdlog::set_level(spdlog::level::info);
@@ -95,8 +97,8 @@ int main(int argc, char* argv[]) {
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    spdlog::info("Ingestion service starting — broker={}, topic={}, workers={}",
-                 cfg.mqtt_broker, cfg.mqtt_topic, cfg.worker_threads);
+    spdlog::info("Ingestion service starting — broker={}, topic={}, workers={}", cfg.mqtt_broker,
+                 cfg.mqtt_topic, cfg.worker_threads);
 
     ThreadPool pool(cfg.worker_threads);
     EventBus event_bus;

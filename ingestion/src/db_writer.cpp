@@ -26,17 +26,16 @@ DbWriter::~DbWriter() {
 }
 
 bool DbWriter::ensure_table() {
-    const char* ddl =
-        "CREATE TABLE IF NOT EXISTS readings ("
-        "  id BIGSERIAL PRIMARY KEY,"
-        "  device_id TEXT NOT NULL,"
-        "  sensor TEXT NOT NULL,"
-        "  value DOUBLE PRECISION NOT NULL,"
-        "  unit TEXT NOT NULL,"
-        "  timestamp TIMESTAMPTZ NOT NULL,"
-        "  anomaly BOOLEAN NOT NULL DEFAULT FALSE,"
-        "  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
-        ")";
+    const char* ddl = "CREATE TABLE IF NOT EXISTS readings ("
+                      "  id BIGSERIAL PRIMARY KEY,"
+                      "  device_id TEXT NOT NULL,"
+                      "  sensor TEXT NOT NULL,"
+                      "  value DOUBLE PRECISION NOT NULL,"
+                      "  unit TEXT NOT NULL,"
+                      "  timestamp TIMESTAMPTZ NOT NULL,"
+                      "  anomaly BOOLEAN NOT NULL DEFAULT FALSE,"
+                      "  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+                      ")";
 
     auto* res = PQexec(static_cast<PGconn*>(conn_), ddl);
     bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
@@ -53,7 +52,8 @@ bool DbWriter::is_connected() const {
 }
 
 bool DbWriter::write(const Reading& reading) {
-    if (!conn_) return false;
+    if (!conn_)
+        return false;
     std::lock_guard<std::mutex> lock(mutex_);
     buffer_.push_back(reading);
     if (buffer_.size() >= config_.batch_size) {
@@ -64,31 +64,44 @@ bool DbWriter::write(const Reading& reading) {
 
 std::size_t DbWriter::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (buffer_.empty()) return 0;
+    if (buffer_.empty())
+        return 0;
     std::size_t count = buffer_.size();
     insert_batch(buffer_);
     return count;
 }
 
 bool DbWriter::insert_batch(std::vector<Reading>& batch) {
-    if (batch.empty() || !conn_) return true;
+    if (batch.empty() || !conn_)
+        return true;
 
     std::string values;
     for (std::size_t i = 0; i < batch.size(); ++i) {
         const auto& r = batch[i];
-        if (i > 0) values += ",";
+        if (i > 0)
+            values += ",";
         std::size_t off = i * 6;
-        values += "($" + std::to_string(off + 1) + ","
-                       "$" + std::to_string(off + 2) + ","
-                       "$" + std::to_string(off + 3) + ","
-                       "$" + std::to_string(off + 4) + ","
-                       "$" + std::to_string(off + 5) + ","
-                       "$" + std::to_string(off + 6) + ")";
+        values += "($" + std::to_string(off + 1) +
+                  ","
+                  "$" +
+                  std::to_string(off + 2) +
+                  ","
+                  "$" +
+                  std::to_string(off + 3) +
+                  ","
+                  "$" +
+                  std::to_string(off + 4) +
+                  ","
+                  "$" +
+                  std::to_string(off + 5) +
+                  ","
+                  "$" +
+                  std::to_string(off + 6) + ")";
     }
 
-    std::string sql =
-        "INSERT INTO readings (device_id, sensor, value, unit, timestamp, anomaly) "
-        "VALUES " + values;
+    std::string sql = "INSERT INTO readings (device_id, sensor, value, unit, timestamp, anomaly) "
+                      "VALUES " +
+                      values;
 
     std::vector<const char*> param_values;
     std::vector<int> param_lengths;
@@ -123,15 +136,9 @@ bool DbWriter::insert_batch(std::vector<Reading>& batch) {
         ++idx;
     }
 
-    auto* res = PQexecParams(
-        static_cast<PGconn*>(conn_),
-        sql.c_str(),
-        static_cast<int>(param_values.size()),
-        nullptr,
-        param_values.data(),
-        param_lengths.data(),
-        param_formats.data(),
-        0);
+    auto* res = PQexecParams(static_cast<PGconn*>(conn_), sql.c_str(),
+                             static_cast<int>(param_values.size()), nullptr, param_values.data(),
+                             param_lengths.data(), param_formats.data(), 0);
 
     bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
     if (!ok) {
@@ -142,4 +149,4 @@ bool DbWriter::insert_batch(std::vector<Reading>& batch) {
     return ok;
 }
 
-}  // namespace ingestion
+} // namespace ingestion

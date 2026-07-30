@@ -12,9 +12,9 @@ QT_END_NAMESPACE
 namespace ui {
 
 class PdfExport {
-public:
+  public:
     static bool export_chart(const QString& filePath, QQuickWindow* window,
-                              const QVector<HistoryPoint>& points);
+                             const QVector<HistoryPoint>& points);
 };
 
-}  // namespace ui
+} // namespace ui

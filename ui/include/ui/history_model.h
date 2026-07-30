@@ -21,7 +21,7 @@ struct HistoryPoint {
 
 class HistoryModel : public QAbstractListModel {
     Q_OBJECT
-public:
+  public:
     enum Roles {
         DeviceIdRole = Qt::UserRole + 1,
         SensorRole,
@@ -37,9 +37,9 @@ public:
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    Q_INVOKABLE void add_point(const QString& deviceId, const QString& sensor,
-                                double value, const QString& unit,
-                                const QDateTime& timestamp, bool anomaly = false);
+    Q_INVOKABLE void add_point(const QString& deviceId, const QString& sensor, double value,
+                               const QString& unit, const QDateTime& timestamp,
+                               bool anomaly = false);
     Q_INVOKABLE void clear();
     Q_INVOKABLE int point_count() const { return points_.size(); }
     Q_INVOKABLE bool export_csv(const QString& path);
@@ -47,8 +47,8 @@ public:
 
     const QVector<HistoryPoint>& points() const { return points_; }
 
-private:
+  private:
     QVector<HistoryPoint> points_;
 };
 
-}  // namespace ui
+} // namespace ui

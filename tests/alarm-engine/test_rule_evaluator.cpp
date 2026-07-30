@@ -1,16 +1,15 @@
 #include <gtest/gtest.h>
 
-#include "alarm-engine/types.h"
 #include "alarm-engine/rule_evaluator.h"
+#include "alarm-engine/types.h"
 
 using namespace alarm_engine;
 
 class RuleEvaluatorTest : public ::testing::Test {
-protected:
+  protected:
     RuleEvaluator eval;
 
-    Rule make_rule(Condition cond, double threshold,
-                   Severity sev = Severity::Warning) {
+    Rule make_rule(Condition cond, double threshold, Severity sev = Severity::Warning) {
         Rule r;
         r.id = 1;
         r.device_id = "pump-001";
@@ -100,8 +99,7 @@ TEST_F(RuleEvaluatorTest, MultipleRulesMultipleFires) {
         make_rule(Condition::LessThan, 10.0, Severity::Warning),
     };
 
-    auto alarms = eval.evaluate_all(rules, "pump-001", "temperature", 95.0,
-                                    "2026-07-26T10:00:00Z");
+    auto alarms = eval.evaluate_all(rules, "pump-001", "temperature", 95.0, "2026-07-26T10:00:00Z");
     EXPECT_EQ(alarms.size(), 2u);
     EXPECT_EQ(alarms[0].severity, Severity::Warning);
     EXPECT_EQ(alarms[1].severity, Severity::Critical);
@@ -113,8 +111,7 @@ TEST_F(RuleEvaluatorTest, NoRulesFire) {
         make_rule(Condition::LessThan, 10.0),
     };
 
-    auto alarms = eval.evaluate_all(rules, "pump-001", "temperature", 50.0,
-                                    "2026-07-26T10:00:00Z");
+    auto alarms = eval.evaluate_all(rules, "pump-001", "temperature", 50.0, "2026-07-26T10:00:00Z");
     EXPECT_TRUE(alarms.empty());
 }
 
@@ -123,8 +120,7 @@ TEST_F(RuleEvaluatorTest, NonMatchingRuleIgnored) {
     rule.device_id = "other-device";
 
     std::vector<Rule> rules = {rule};
-    auto alarms = eval.evaluate_all(rules, "pump-001", "temperature", 90.0,
-                                    "2026-07-26T10:00:00Z");
+    auto alarms = eval.evaluate_all(rules, "pump-001", "temperature", 90.0, "2026-07-26T10:00:00Z");
     EXPECT_TRUE(alarms.empty());
 }
 
@@ -139,8 +135,7 @@ TEST_F(RuleEvaluatorTest, AlarmContainsCorrectFields) {
         make_rule(Condition::GreaterThan, 80.0, Severity::Critical),
     };
 
-    auto alarms = eval.evaluate_all(rules, "pump-001", "temperature", 95.0,
-                                    "2026-07-26T10:00:00Z");
+    auto alarms = eval.evaluate_all(rules, "pump-001", "temperature", 95.0, "2026-07-26T10:00:00Z");
     ASSERT_EQ(alarms.size(), 1u);
     EXPECT_EQ(alarms[0].device_id, "pump-001");
     EXPECT_EQ(alarms[0].sensor, "temperature");

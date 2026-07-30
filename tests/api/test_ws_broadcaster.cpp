@@ -50,14 +50,12 @@ TEST(WebSocketBroadcasterTest, BroadcastJsonReading) {
 
     broadcaster.add_connection([&received](const std::string& msg) { received = msg; });
 
-    json reading = {
-        {"device_id", "pump-001"},
-        {"sensor", "temperature"},
-        {"value", 65.3},
-        {"unit", "°C"},
-        {"timestamp", "2026-07-26T10:00:00Z"},
-        {"anomaly", false}
-    };
+    json reading = {{"device_id", "pump-001"},
+                    {"sensor", "temperature"},
+                    {"value", 65.3},
+                    {"unit", "°C"},
+                    {"timestamp", "2026-07-26T10:00:00Z"},
+                    {"anomaly", false}};
 
     broadcaster.broadcast(reading.dump());
 

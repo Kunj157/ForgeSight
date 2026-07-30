@@ -50,4 +50,4 @@ const char* condition_to_string(Condition c) noexcept;
 Severity severity_from_string(const std::string& s);
 Condition condition_from_string(const std::string& s);
 
-}  // namespace alarm_engine
+} // namespace alarm_engine

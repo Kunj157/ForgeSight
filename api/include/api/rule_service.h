@@ -10,7 +10,7 @@
 namespace api {
 
 class RuleService {
-public:
+  public:
     explicit RuleService(void* conn);
 
     std::vector<alarm_engine::Rule> list_rules() const;
@@ -19,14 +19,12 @@ public:
     bool update_rule(const alarm_engine::Rule& rule);
     bool delete_rule(std::int64_t id);
 
-    std::vector<alarm_engine::Alarm> get_alarms_since(
-        const std::string& since) const;
-    std::vector<alarm_engine::Alarm> list_alarms(
-        bool unacknowledged_only = false) const;
+    std::vector<alarm_engine::Alarm> get_alarms_since(const std::string& since) const;
+    std::vector<alarm_engine::Alarm> list_alarms(bool unacknowledged_only = false) const;
     bool acknowledge_alarm(std::int64_t id);
 
-private:
+  private:
     void* conn_;
 };
 
-}  // namespace api
+} // namespace api

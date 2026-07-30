@@ -10,14 +10,15 @@ namespace {
 
 std::string get_test_conn_string() {
     const char* env = std::getenv("FORGESIGHT_TEST_DB");
-    if (env) return env;
+    if (env)
+        return env;
     return "dbname=forgesight_test";
 }
 
-}  // namespace
+} // namespace
 
 class DbWriterTest : public ::testing::Test {
-protected:
+  protected:
     std::string conn_str = get_test_conn_string();
 
     void SetUp() override {
@@ -29,8 +30,7 @@ protected:
     }
 
     Reading make_reading(const std::string& device = "pump-001",
-                         const std::string& sensor = "temperature",
-                         double value = 65.0) {
+                         const std::string& sensor = "temperature", double value = 65.0) {
         Reading r;
         r.device_id = device;
         r.sensor = sensor;

@@ -12,7 +12,7 @@
 namespace ingestion {
 
 class ThreadPool {
-public:
+  public:
     explicit ThreadPool(std::size_t num_threads);
     ~ThreadPool();
 
@@ -26,14 +26,14 @@ public:
     std::size_t pending_tasks() const;
     bool is_shutdown() const;
 
-private:
+  private:
     void worker_loop();
 
     std::vector<std::thread> workers_;
-    std::queue<std::function<void()> > tasks_;
+    std::queue<std::function<void()>> tasks_;
     mutable std::mutex mutex_;
     std::condition_variable cv_;
     std::atomic<bool> shutdown_{false};
 };
 
-}  // namespace ingestion
+} // namespace ingestion

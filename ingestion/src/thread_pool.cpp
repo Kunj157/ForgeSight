@@ -23,7 +23,8 @@ void ThreadPool::worker_loop() {
         {
             std::unique_lock lock(mutex_);
             cv_.wait(lock, [this]() { return shutdown_.load() || !tasks_.empty(); });
-            if (shutdown_.load() && tasks_.empty()) return;
+            if (shutdown_.load() && tasks_.empty())
+                return;
             task = std::move(tasks_.front());
             tasks_.pop();
         }
@@ -55,12 +56,14 @@ std::future<void> ThreadPool::submit(std::function<void()> task) {
 void ThreadPool::shutdown() {
     {
         std::lock_guard lock(mutex_);
-        if (shutdown_.load()) return;
+        if (shutdown_.load())
+            return;
         shutdown_.store(true);
     }
     cv_.notify_all();
     for (auto& w : workers_) {
-        if (w.joinable()) w.join();
+        if (w.joinable())
+            w.join();
     }
 }
 
@@ -73,4 +76,4 @@ bool ThreadPool::is_shutdown() const {
     return shutdown_.load();
 }
 
-}  // namespace ingestion
+} // namespace ingestion

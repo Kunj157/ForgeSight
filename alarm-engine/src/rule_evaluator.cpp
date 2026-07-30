@@ -6,11 +6,16 @@ namespace alarm_engine {
 
 bool RuleEvaluator::evaluate(const Rule& rule, double value) const {
     switch (rule.condition) {
-        case Condition::GreaterThan:     return value > rule.threshold;
-        case Condition::LessThan:        return value < rule.threshold;
-        case Condition::GreaterOrEqual:  return value >= rule.threshold;
-        case Condition::LessOrEqual:     return value <= rule.threshold;
-        case Condition::Equal:           return value == rule.threshold;
+    case Condition::GreaterThan:
+        return value > rule.threshold;
+    case Condition::LessThan:
+        return value < rule.threshold;
+    case Condition::GreaterOrEqual:
+        return value >= rule.threshold;
+    case Condition::LessOrEqual:
+        return value <= rule.threshold;
+    case Condition::Equal:
+        return value == rule.threshold;
     }
     return false;
 }
@@ -42,18 +47,18 @@ std::string RuleEvaluator::format_message(const Rule& rule, double value) const 
     return msg;
 }
 
-std::vector<Alarm> RuleEvaluator::evaluate_all(
-    const std::vector<Rule>& rules,
-    const std::string& device_id,
-    const std::string& sensor,
-    double value,
-    const std::string& timestamp) const {
+std::vector<Alarm> RuleEvaluator::evaluate_all(const std::vector<Rule>& rules,
+                                               const std::string& device_id,
+                                               const std::string& sensor, double value,
+                                               const std::string& timestamp) const {
 
     std::vector<Alarm> alarms;
 
     for (const auto& rule : rules) {
-        if (!rule.matches(device_id, sensor)) continue;
-        if (!evaluate(rule, value)) continue;
+        if (!rule.matches(device_id, sensor))
+            continue;
+        if (!evaluate(rule, value))
+            continue;
 
         Alarm alarm;
         alarm.rule_id = rule.id;
@@ -71,4 +76,4 @@ std::vector<Alarm> RuleEvaluator::evaluate_all(
     return alarms;
 }
 
-}  // namespace alarm_engine
+} // namespace alarm_engine

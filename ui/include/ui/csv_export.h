@@ -8,9 +8,9 @@
 namespace ui {
 
 class CsvExport {
-public:
+  public:
     static bool to_file(const QString& filePath, const QVector<HistoryPoint>& points);
     static QString to_string(const QVector<HistoryPoint>& points);
 };
 
-}  // namespace ui
+} // namespace ui

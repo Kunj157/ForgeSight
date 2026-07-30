@@ -14,7 +14,7 @@ struct DbConfig {
 };
 
 class DbWriter {
-public:
+  public:
     explicit DbWriter(const DbConfig& config);
     ~DbWriter();
 
@@ -25,7 +25,7 @@ public:
     std::size_t flush();
     bool is_connected() const;
 
-private:
+  private:
     bool ensure_table();
     bool insert_batch(std::vector<Reading>& batch);
 
@@ -35,4 +35,4 @@ private:
     mutable std::mutex mutex_;
 };
 
-}  // namespace ingestion
+} // namespace ingestion

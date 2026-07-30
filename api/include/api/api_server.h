@@ -17,12 +17,11 @@ namespace api {
 
 class ApiServer : public QObject {
     Q_OBJECT
-public:
+  public:
     ApiServer(void* conn, QObject* parent = nullptr);
     ~ApiServer() override;
 
-    bool start(quint16 httpPort = 8080, quint16 wsPort = 0,
-               const std::string& mqttBroker = "");
+    bool start(quint16 httpPort = 8080, quint16 wsPort = 0, const std::string& mqttBroker = "");
     quint16 port() const { return port_; }
     quint16 wsPort() const { return wsPort_; }
     void stop();
@@ -31,7 +30,7 @@ public:
     void broadcast_reading(const ingestion::Reading& r);
     void broadcast_alarm(const alarm_engine::Alarm& a);
 
-private:
+  private:
     void setupRoutes();
     void on_new_websocket_connection();
     void connect_mqtt(const std::string& broker);
@@ -48,4 +47,4 @@ private:
     std::string last_alarms_since_;
 };
 
-}  // namespace api
+} // namespace api

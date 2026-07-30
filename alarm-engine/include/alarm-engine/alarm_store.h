@@ -12,7 +12,7 @@ struct AlarmStoreConfig {
 };
 
 class AlarmStore {
-public:
+  public:
     explicit AlarmStore(const AlarmStoreConfig& config);
     ~AlarmStore();
 
@@ -32,8 +32,8 @@ public:
     std::vector<Alarm> load_alarms(bool unacknowledged_only = false) const;
     bool acknowledge_alarm(std::int64_t alarm_id);
 
-private:
+  private:
     void* conn_ = nullptr;
 };
 
-}  // namespace alarm_engine
+} // namespace alarm_engine

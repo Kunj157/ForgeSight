@@ -1,5 +1,5 @@
-#include <QCoreApplication>
 #include <QCommandLineParser>
+#include <QCoreApplication>
 
 #include <libpq-fe.h>
 #include <spdlog/spdlog.h>
@@ -20,7 +20,7 @@ void* connect_db(const std::string& conn_str) {
     return conn;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
@@ -31,10 +31,9 @@ int main(int argc, char* argv[]) {
     parser.addHelpOption();
     parser.addOption({{"p", "port"}, "HTTP listen port", "port", "8080"});
     parser.addOption({{"w", "ws-port"}, "WebSocket listen port", "port", "8081"});
-    parser.addOption({{"d", "database"}, "PostgreSQL connection string",
-                       "connstr", "dbname=forgesight"});
-    parser.addOption({{"m", "mqtt"}, "MQTT broker URL",
-                       "url", "tcp://localhost:1883"});
+    parser.addOption(
+        {{"d", "database"}, "PostgreSQL connection string", "connstr", "dbname=forgesight"});
+    parser.addOption({{"m", "mqtt"}, "MQTT broker URL", "url", "tcp://localhost:1883"});
     parser.process(app);
 
     quint16 httpPort = parser.value("port").toUShort();
@@ -47,7 +46,8 @@ int main(int argc, char* argv[]) {
     api::ApiServer server(conn);
     if (!server.start(httpPort, wsPort, mqtt_broker)) {
         spdlog::error("Failed to start API server");
-        if (conn) PQfinish(static_cast<PGconn*>(conn));
+        if (conn)
+            PQfinish(static_cast<PGconn*>(conn));
         return 1;
     }
 

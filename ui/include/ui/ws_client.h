@@ -11,10 +11,10 @@ class WsClient : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool connected READ is_connected NOTIFY connectedChanged)
     Q_PROPERTY(QUrl url READ url WRITE set_url NOTIFY urlChanged)
-    Q_PROPERTY(bool autoReconnect READ auto_reconnect WRITE set_auto_reconnect
-               NOTIFY autoReconnectChanged)
+    Q_PROPERTY(
+        bool autoReconnect READ auto_reconnect WRITE set_auto_reconnect NOTIFY autoReconnectChanged)
 
-public:
+  public:
     explicit WsClient(QObject* parent = nullptr);
 
     bool is_connected() const;
@@ -30,7 +30,7 @@ public:
     Q_INVOKABLE void connectToServer();
     Q_INVOKABLE void disconnectFromServer();
 
-Q_SIGNALS:
+  Q_SIGNALS:
     void connectedChanged();
     void urlChanged();
     void autoReconnectChanged();
@@ -39,7 +39,7 @@ Q_SIGNALS:
     void connectionError(const QString& error);
     void disconnected();
 
-private Q_SLOTS:
+  private Q_SLOTS:
     void on_connected();
     void on_disconnected();
     void on_text_message_received(const QString& message);
@@ -47,7 +47,7 @@ private Q_SLOTS:
     void on_error(QAbstractSocket::SocketError error);
     void try_reconnect();
 
-private:
+  private:
     QWebSocket socket_;
     QUrl url_;
     QTimer reconnect_timer_;
@@ -57,4 +57,4 @@ private:
     int reconnect_attempt_ = 0;
 };
 
-}  // namespace ui
+} // namespace ui

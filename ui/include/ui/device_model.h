@@ -13,14 +13,14 @@ struct DeviceState {
     QString unit;
     QString timestamp;
     bool anomaly = false;
-    QString status;  // "normal", "warning", "critical"
+    QString status; // "normal", "warning", "critical"
 };
 
 class DeviceModel : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
-public:
+  public:
     enum Roles {
         DeviceIdRole = Qt::UserRole + 1,
         SensorRole,
@@ -39,21 +39,20 @@ public:
 
     int count() const { return devices_.size(); }
 
-    Q_INVOKABLE void updateDevice(const QString& device_id, const QString& sensor,
-                                   double value, const QString& unit,
-                                   const QString& timestamp, bool anomaly);
+    Q_INVOKABLE void updateDevice(const QString& device_id, const QString& sensor, double value,
+                                  const QString& unit, const QString& timestamp, bool anomaly);
     void clear();
 
     Q_INVOKABLE QString device_status(const QString& device_id) const;
 
-Q_SIGNALS:
+  Q_SIGNALS:
     void countChanged();
 
-private:
+  private:
     int find_device(const QString& device_id, const QString& sensor) const;
     static QString compute_status(bool anomaly, double value);
 
     QVector<DeviceState> devices_;
 };
 
-}  // namespace ui
+} // namespace ui

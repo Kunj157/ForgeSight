@@ -19,11 +19,8 @@ QString CsvExport::to_string(const QVector<HistoryPoint>& points) {
     QTextStream s(&out);
     s << "DeviceId,Sensor,Value,Unit,Timestamp,Anomaly\n";
     for (const auto& p : points) {
-        s << escape_csv(p.deviceId) << ','
-          << escape_csv(p.sensor) << ','
-          << p.value << ','
-          << escape_csv(p.unit) << ','
-          << p.timestamp.toString(Qt::ISODate) << ','
+        s << escape_csv(p.deviceId) << ',' << escape_csv(p.sensor) << ',' << p.value << ','
+          << escape_csv(p.unit) << ',' << p.timestamp.toString(Qt::ISODate) << ','
           << (p.anomaly ? "true" : "false") << '\n';
     }
     return out;
@@ -38,4 +35,4 @@ bool CsvExport::to_file(const QString& filePath, const QVector<HistoryPoint>& po
     return true;
 }
 
-}  // namespace ui
+} // namespace ui
