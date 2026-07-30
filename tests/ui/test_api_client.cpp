@@ -36,6 +36,9 @@ class FakeHttpServer : public QObject {
                         body = readings_body_;
                     } else if (req.contains("GET /api/alarms")) {
                         body = alarms_body_;
+                    } else if (req.contains("GET /api/history/")) {
+                        last_history_request_ = req;
+                        body = history_body_;
                     }
 
                     const QByteArray resp = "HTTP/1.1 " + QByteArray::number(status) +
@@ -60,8 +63,12 @@ class FakeHttpServer : public QObject {
         R"([{"device_id":"pump-001","sensor":"temperature","value":72.5,"unit":"C","timestamp":"2026-07-30T10:00:00Z","anomaly":false}])";
     QByteArray alarms_body_ =
         R"([{"id":1,"device_id":"pump-001","sensor":"temperature","value":96,"severity":"critical","message":"hot","timestamp":"2026-07-30T10:00:01Z","acknowledged":true}])";
+    QByteArray history_body_ =
+        R"([{"device_id":"pump-001","sensor":"temperature","value":65.0,"unit":"C","timestamp":"2026-07-30T09:00:00Z","anomaly":false},)"
+        R"({"device_id":"pump-001","sensor":"temperature","value":97.0,"unit":"C","timestamp":"2026-07-30T09:01:00Z","anomaly":true}])";
     int ack_status_ = 200;
     QByteArray last_request_;
+    QByteArray last_history_request_;
 
   private:
     QTcpServer server_;
@@ -105,6 +112,28 @@ TEST_F(ApiClientTest, FetchAlarmsEmitsAlarmWithAckState) {
     EXPECT_EQ(spy[0][0].toLongLong(), 1);
     EXPECT_EQ(spy[0][4].toString(), "critical");
     EXPECT_TRUE(spy[0][7].toBool());
+}
+
+TEST_F(ApiClientTest, FetchHistoryEmitsPointsThenFinished) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+
+    QSignalSpy pointSpy(&client, &ui::ApiClient::historyPointReceived);
+    QSignalSpy finishedSpy(&client, &ui::ApiClient::historyLoadFinished);
+
+    client.fetchHistory("pump-001", "temperature", "2026-07-30T00:00:00Z");
+
+    ASSERT_TRUE(finishedSpy.wait(2000));
+    ASSERT_EQ(pointSpy.size(), 2);
+    EXPECT_EQ(pointSpy[0][0].toString(), "pump-001");
+    EXPECT_DOUBLE_EQ(pointSpy[0][2].toDouble(), 65.0);
+    EXPECT_TRUE(pointSpy[1][5].toBool());
+
+    ASSERT_EQ(finishedSpy.size(), 1);
+    EXPECT_TRUE(finishedSpy[0][0].toBool());
+    EXPECT_TRUE(server.last_history_request_.contains(
+        "GET /api/history/pump-001/temperature?since=2026-07-30T00:00:00Z"));
 }
 
 TEST_F(ApiClientTest, AcknowledgeAlarmPostsAndEmitsSuccess) {

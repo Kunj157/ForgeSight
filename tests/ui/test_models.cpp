@@ -2,6 +2,7 @@
 
 #include <QAbstractItemModel>
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QSignalSpy>
 
 #include "ui/alarm_model.h"
@@ -266,6 +267,29 @@ TEST_F(HistoryModelTest, RoleNamesAreCorrect) {
     EXPECT_TRUE(roles.contains(ui::HistoryModel::UnitRole));
     EXPECT_TRUE(roles.contains(ui::HistoryModel::TimestampRole));
     EXPECT_TRUE(roles.contains(ui::HistoryModel::AnomalyRole));
+}
+
+TEST_F(HistoryModelTest, PointCountChangedEmittedOnAddAndClear) {
+    ui::HistoryModel model;
+    QSignalSpy spy(&model, &ui::HistoryModel::pointCountChanged);
+
+    model.add_point("pump-001", "temperature", 65.0, "°C",
+                    QDateTime::fromString("2026-07-26T10:00:00Z", Qt::ISODate), false);
+    EXPECT_EQ(spy.count(), 1);
+
+    model.clear();
+    EXPECT_EQ(spy.count(), 2);
+}
+
+TEST_F(HistoryModelTest, DefaultExportPathIsNotCwdRelative) {
+    ui::HistoryModel model;
+    QString path = model.default_export_path("history_export.csv");
+
+    EXPECT_TRUE(path.endsWith("/history_export.csv"));
+    EXPECT_NE(path, "history_export.csv");
+
+    QFileInfo info(path);
+    EXPECT_TRUE(info.dir().exists());
 }
 
 TEST_F(HistoryModelTest, OutOfRangeIndexReturnsInvalid) {

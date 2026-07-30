@@ -3,7 +3,9 @@
 #include "ui/csv_export.h"
 #include "ui/pdf_export.h"
 
+#include <QDir>
 #include <QQuickWindow>
+#include <QStandardPaths>
 
 namespace ui {
 
@@ -48,12 +50,14 @@ void HistoryModel::add_point(const QString& deviceId, const QString& sensor, dou
     beginInsertRows({}, points_.size(), points_.size());
     points_.push_back({deviceId, sensor, value, unit, timestamp, anomaly});
     endInsertRows();
+    Q_EMIT pointCountChanged();
 }
 
 void HistoryModel::clear() {
     beginResetModel();
     points_.clear();
     endResetModel();
+    Q_EMIT pointCountChanged();
 }
 
 bool HistoryModel::export_csv(const QString& path) {
@@ -62,6 +66,16 @@ bool HistoryModel::export_csv(const QString& path) {
 
 bool HistoryModel::export_pdf(const QString& path, QQuickWindow* window) {
     return PdfExport::export_chart(path, window, points_);
+}
+
+QString HistoryModel::default_export_path(const QString& filename) const {
+    QString dirPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    if (dirPath.isEmpty())
+        dirPath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    dirPath += QStringLiteral("/ForgeSight");
+
+    QDir().mkpath(dirPath);
+    return dirPath + QStringLiteral("/") + filename;
 }
 
 } // namespace ui
