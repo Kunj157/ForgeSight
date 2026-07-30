@@ -21,6 +21,8 @@ struct HistoryPoint {
 
 class HistoryModel : public QAbstractListModel {
     Q_OBJECT
+    Q_PROPERTY(int pointCount READ point_count NOTIFY pointCountChanged)
+
   public:
     enum Roles {
         DeviceIdRole = Qt::UserRole + 1,
@@ -44,8 +46,12 @@ class HistoryModel : public QAbstractListModel {
     Q_INVOKABLE int point_count() const { return points_.size(); }
     Q_INVOKABLE bool export_csv(const QString& path);
     Q_INVOKABLE bool export_pdf(const QString& path, QQuickWindow* window);
+    Q_INVOKABLE QString default_export_path(const QString& filename) const;
 
     const QVector<HistoryPoint>& points() const { return points_; }
+
+  Q_SIGNALS:
+    void pointCountChanged();
 
   private:
     QVector<HistoryPoint> points_;
