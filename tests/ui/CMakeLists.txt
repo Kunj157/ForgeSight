@@ -15,6 +15,8 @@ find_package(Qt6 REQUIRED COMPONENTS Test Quick PrintSupport)
 add_executable(ui_tests
     test_models.cpp
     test_export.cpp
+    test_ws_client.cpp
+    test_api_client.cpp
 )
 
 target_link_libraries(ui_tests PRIVATE
@@ -22,6 +24,8 @@ target_link_libraries(ui_tests PRIVATE
     GTest::gtest_main
     Qt6::Test
     Qt6::Quick
+    Qt6::WebSockets
+    Qt6::Network
     Qt6::PrintSupport
 )
 
