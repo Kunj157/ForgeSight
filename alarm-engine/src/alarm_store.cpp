@@ -65,7 +65,26 @@ bool AlarmStore::create_tables() {
         spdlog::error("Failed to create alarm tables: {}",
                       PQerrorMessage(static_cast<PGconn*>(conn_)));
     }
-    return ok1 && ok2;
+
+    const char* ddl_idx_timestamp =
+        "CREATE INDEX IF NOT EXISTS idx_alarms_timestamp ON alarms (timestamp)";
+    const char* ddl_idx_acknowledged =
+        "CREATE INDEX IF NOT EXISTS idx_alarms_acknowledged ON alarms (acknowledged)";
+
+    auto* r3 = PQexec(static_cast<PGconn*>(conn_), ddl_idx_timestamp);
+    bool ok3 = PQresultStatus(r3) == PGRES_COMMAND_OK;
+    PQclear(r3);
+
+    auto* r4 = PQexec(static_cast<PGconn*>(conn_), ddl_idx_acknowledged);
+    bool ok4 = PQresultStatus(r4) == PGRES_COMMAND_OK;
+    PQclear(r4);
+
+    if (!ok3 || !ok4) {
+        spdlog::error("Failed to create alarm indexes: {}",
+                      PQerrorMessage(static_cast<PGconn*>(conn_)));
+    }
+
+    return ok1 && ok2 && ok3 && ok4;
 }
 
 bool AlarmStore::add_rule(const Rule& rule) {
