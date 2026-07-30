@@ -2,8 +2,8 @@
 
 **Last updated:** 2026-07-30 (P0 CI/ack/rules in progress on PR #9)  
 **Branch:** `feature/historical-graphs`  
-**Open PR:** https://github.com/Kunj157/ForgeSight/pull/9 → `dev` (Closes #8)  
-**Issue:** https://github.com/Kunj157/ForgeSight/issues/8  
+**Open PR:** #9 **MERGED** into `dev` (2026-07-30)  
+**Issue:** #8 closed with PR #9  
 
 Use this file as the source of truth for “what’s done / what’s next” in a new chat session.
 
@@ -16,8 +16,8 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 | Local live demo (sim → MQTT → ingest → DB → API/WS → UI) | **Working** via `scripts/dev-up.sh` |
 | Phases 0–6 (MVP core) | **Mostly done**, with holes listed below |
 | Phases 7–9 (offline, packaging, release) | **Not started** |
-| CI on PR #9 | **Green** (build + lint) |
-| Production-grade | **Not yet** — reliable local demo, not shippable |
+| CI / `dev` | **PR #9 merged**; P0 done |
+| Production-grade | **Not yet** — P0 done; next is P1 then Phase 7 |
 
 **How to run today**
 
@@ -187,3 +187,10 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 - [ ] Tagged `v1.0.0` on `main` with release artifacts  
 
 When all boxes above are checked, stretch phases may begin.
+
+
+---
+
+## Progress log
+
+- **2026-07-30:** P0 complete. PR #9 merged to `dev` (CI green). Closed stale PRs #4/#6 and issues #1/#3/#8. Next: P1 items from this roadmap (indexes, hierarchy, history ApiClient, MQTT bridge lifetime) then Phase 7 offline.
