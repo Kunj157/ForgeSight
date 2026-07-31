@@ -17,6 +17,41 @@ Window {
     property int navIndex: 0
     property string statusHint: "Connecting…"
 
+    // Staleness tracking: the raw WS socket can look "connected" for a few
+    // seconds after the backend actually stops publishing, and conversely a
+    // brief reconnect blip is not the same as truly having no fresh data.
+    // "Offline" here means no message has arrived recently, which is a
+    // better signal for the user than the bare socket state.
+    property double lastMessageAtMs: 0
+    property bool stale: false
+    readonly property bool offline: !wsClient.connected || stale
+    readonly property int staleThresholdMs: 10000
+    property string lastUpdatedText: "No data yet"
+
+    function markFresh() { lastMessageAtMs = Date.now() }
+
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: {
+            root.stale = root.lastMessageAtMs > 0
+                       && (Date.now() - root.lastMessageAtMs) > root.staleThresholdMs
+
+            if (root.lastMessageAtMs === 0) {
+                root.lastUpdatedText = "No data yet"
+                return
+            }
+            var secs = Math.round((Date.now() - root.lastMessageAtMs) / 1000)
+            if (secs < 2)
+                root.lastUpdatedText = "Updated just now"
+            else if (secs < 60)
+                root.lastUpdatedText = "Updated " + secs + "s ago"
+            else
+                root.lastUpdatedText = "Updated " + Math.round(secs / 60) + "m ago"
+        }
+    }
+
     Connections {
         target: alarmModel
         function onAlarmAdded() { alarmCount = alarmModel.unacknowledgedCount }
@@ -31,6 +66,7 @@ Window {
                 obj.device_id, obj.sensor, obj.value,
                 obj.unit, obj.timestamp, obj.anomaly
             )
+            root.markFresh()
         }
         function onAlarmReceived(json) {
             var obj = JSON.parse(json)
@@ -39,12 +75,21 @@ Window {
                 obj.value, obj.severity, obj.message, obj.timestamp,
                 !!obj.acknowledged
             )
+            root.markFresh()
         }
         function onConnectedChanged() {
             if (wsClient.connected)
                 statusHint = ""
             else
                 statusHint = "Disconnected — run scripts/dev-up.sh"
+        }
+    }
+
+    Connections {
+        target: apiClient
+        function onBootstrapFinished(ok, error) {
+            if (ok)
+                root.markFresh()
         }
     }
 
@@ -292,21 +337,21 @@ Window {
                             Rectangle {
                                 anchors.centerIn: parent
                                 width: 10; height: 10; radius: 5
-                                color: wsClient.connected ? Theme.success : Theme.critical
+                                color: root.offline ? Theme.critical : Theme.success
                             }
                             Rectangle {
                                 anchors.centerIn: parent
                                 width: 10; height: 10; radius: 5
-                                color: wsClient.connected ? Theme.success : Theme.critical
-                                visible: wsClient.connected
+                                color: root.offline ? Theme.critical : Theme.success
+                                visible: !root.offline
                                 opacity: 0.6
                                 SequentialAnimation on scale {
-                                    running: wsClient.connected
+                                    running: !root.offline
                                     loops: Animation.Infinite
                                     NumberAnimation { from: 1.0; to: 2.4; duration: 1400; easing.type: Easing.OutCubic }
                                 }
                                 SequentialAnimation on opacity {
-                                    running: wsClient.connected
+                                    running: !root.offline
                                     loops: Animation.Infinite
                                     NumberAnimation { from: 0.6; to: 0.0; duration: 1400; easing.type: Easing.OutCubic }
                                 }
@@ -316,12 +361,39 @@ Window {
                         ColumnLayout {
                             spacing: 1
                             Layout.fillWidth: true
+                            RowLayout {
+                                spacing: 6
+                                Label {
+                                    text: wsClient.connected ? "Connected" : "Disconnected"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSm
+                                    font.bold: true
+                                    color: Theme.textPrimary
+                                }
+                                Rectangle {
+                                    visible: offlineCache.pendingAckCount > 0
+                                    radius: Theme.radiusSm
+                                    color: Theme.warningBg
+                                    border.color: Theme.warning
+                                    border.width: 1
+                                    height: 16
+                                    width: pendingLabel.implicitWidth + 10
+                                    Label {
+                                        id: pendingLabel
+                                        anchors.centerIn: parent
+                                        text: offlineCache.pendingAckCount + " pending sync"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 9
+                                        font.bold: true
+                                        color: Theme.warning
+                                    }
+                                }
+                            }
                             Label {
-                                text: wsClient.connected ? "Connected" : "Disconnected"
+                                text: root.lastUpdatedText
                                 font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSm
-                                font.bold: true
-                                color: Theme.textPrimary
+                                font.pixelSize: 10
+                                color: root.stale ? Theme.warning : Theme.textMuted
                             }
                             Label {
                                 text: "ws://127.0.0.1:8081"
@@ -436,25 +508,38 @@ Window {
                         height: 30
                         width: kpiLiveRow.implicitWidth + 24
                         radius: Theme.radiusMd
-                        color: wsClient.connected ? Theme.successBg : Theme.criticalBg
-                        border.color: wsClient.connected ? Theme.success : Theme.critical
+                        color: root.offline ? Theme.criticalBg : Theme.successBg
+                        border.color: root.offline ? Theme.critical : Theme.success
                         border.width: 1
+                        Behavior on color { ColorAnimation { duration: Theme.motionMed } }
+
+                        ToolTip.visible: liveMouse.containsMouse
+                        ToolTip.text: root.offline ? root.lastUpdatedText + " — showing cached values"
+                                                    : root.lastUpdatedText
+
                         RowLayout {
                             id: kpiLiveRow
                             anchors.centerIn: parent
                             spacing: 6
                             Rectangle {
                                 width: 6; height: 6; radius: 3
-                                color: wsClient.connected ? Theme.success : Theme.critical
+                                color: root.offline ? Theme.critical : Theme.success
                             }
                             Label {
-                                text: wsClient.connected ? "LIVE" : "OFFLINE"
+                                text: root.offline ? "OFFLINE" : "LIVE"
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontXs
                                 font.bold: true
                                 font.letterSpacing: 0.6
-                                color: wsClient.connected ? Theme.success : Theme.critical
+                                color: root.offline ? Theme.critical : Theme.success
                             }
+                        }
+
+                        MouseArea {
+                            id: liveMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.NoButton
                         }
                     }
                 }
