@@ -68,6 +68,7 @@ bool ApiServer::start(quint16 httpPort, quint16 wsPort, const std::string& mqttB
     spdlog::info("ApiServer: WebSocket listening on port {}", wsPort_);
 
     connect_mqtt(mqttBroker);
+    seed_default_device_locations();
 
     last_readings_since_ =
         QDateTime::currentDateTimeUtc().addSecs(-10).toString(Qt::ISODate).toStdString();
@@ -108,6 +109,19 @@ void ApiServer::stop() {
     server_.listen(QHostAddress::Any, 0);
     port_ = 0;
     wsPort_ = 0;
+}
+
+void ApiServer::seed_default_device_locations() {
+    // Mirrors simulators/config.yaml. Non-destructive (won't override a
+    // location that was already assigned via set_device_location), so this
+    // is safe to run on every startup.
+    static const std::pair<const char*, std::pair<const char*, const char*>> kKnownDevices[] = {
+        {"pump-001", {"Plant A", "Floor 1"}},
+        {"compressor-001", {"Plant A", "Floor 2"}},
+    };
+    for (const auto& [id, location] : kKnownDevices) {
+        deviceService_.seed_default_location(id, location.first, location.second);
+    }
 }
 
 void ApiServer::connect_mqtt(const std::string& broker) {
@@ -179,7 +193,9 @@ void ApiServer::setupRoutes() {
                          {"last_reading_time", d.last_reading_time},
                          {"last_value", d.last_value},
                          {"last_unit", d.last_unit},
-                         {"anomaly", d.anomaly}});
+                         {"anomaly", d.anomaly},
+                         {"plant", d.plant},
+                         {"floor", d.floor}});
         }
 
         return QHttpServerResponse("application/json", QByteArray::fromStdString(j.dump()));

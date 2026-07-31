@@ -1,6 +1,11 @@
 devices:
+  # plant/floor here document the intended default hierarchy; the API
+  # (ApiServer::seed_default_device_locations) seeds these on startup into
+  # the device_metadata table. Keep the two in sync.
   - id: pump-001
     name: "Main Coolant Pump"
+    plant: "Plant A"
+    floor: "Floor 1"
     sensors:
       - name: temperature
         unit: "°C"
@@ -23,6 +28,8 @@ devices:
 
   - id: compressor-001
     name: "Air Compressor"
+    plant: "Plant A"
+    floor: "Floor 2"
     sensors:
       - name: temperature
         unit: "°C"
