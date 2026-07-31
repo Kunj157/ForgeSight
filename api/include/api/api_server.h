@@ -36,6 +36,7 @@ class ApiServer : public QObject {
     void setupRoutes();
     void on_new_websocket_connection();
     void connect_mqtt(const std::string& broker);
+    void seed_default_device_locations();
     void* conn_;
     quint16 port_ = 0;
     quint16 wsPort_ = 0;

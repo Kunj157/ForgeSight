@@ -5,19 +5,79 @@
 
 namespace api {
 
-DeviceService::DeviceService(void* conn) : conn_(conn) {}
+DeviceService::DeviceService(void* conn) : conn_(conn) {
+    ensure_metadata_table();
+}
+
+void DeviceService::ensure_metadata_table() const {
+    if (!conn_)
+        return;
+    const char* ddl = "CREATE TABLE IF NOT EXISTS device_metadata ("
+                      "device_id TEXT PRIMARY KEY, "
+                      "plant TEXT NOT NULL DEFAULT 'Unassigned', "
+                      "floor TEXT NOT NULL DEFAULT 'Unassigned')";
+    auto* res = PQexec(static_cast<PGconn*>(conn_), ddl);
+    PQclear(res);
+}
+
+bool DeviceService::set_device_location(const std::string& device_id, const std::string& plant,
+                                        const std::string& floor) const {
+    if (!conn_)
+        return false;
+
+    const char* params[3] = {device_id.c_str(), plant.c_str(), floor.c_str()};
+    int lengths[3] = {static_cast<int>(device_id.size()), static_cast<int>(plant.size()),
+                      static_cast<int>(floor.size())};
+    int formats[3] = {0, 0, 0};
+
+    auto* res = PQexecParams(static_cast<PGconn*>(conn_),
+                             "INSERT INTO device_metadata (device_id, plant, floor) "
+                             "VALUES ($1, $2, $3) "
+                             "ON CONFLICT (device_id) DO UPDATE SET plant = EXCLUDED.plant, "
+                             "floor = EXCLUDED.floor",
+                             3, nullptr, params, lengths, formats, 0);
+
+    bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
+    PQclear(res);
+    return ok;
+}
+
+bool DeviceService::seed_default_location(const std::string& device_id, const std::string& plant,
+                                          const std::string& floor) const {
+    if (!conn_)
+        return false;
+
+    const char* params[3] = {device_id.c_str(), plant.c_str(), floor.c_str()};
+    int lengths[3] = {static_cast<int>(device_id.size()), static_cast<int>(plant.size()),
+                      static_cast<int>(floor.size())};
+    int formats[3] = {0, 0, 0};
+
+    auto* res = PQexecParams(static_cast<PGconn*>(conn_),
+                             "INSERT INTO device_metadata (device_id, plant, floor) "
+                             "VALUES ($1, $2, $3) "
+                             "ON CONFLICT (device_id) DO NOTHING",
+                             3, nullptr, params, lengths, formats, 0);
+
+    bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
+    PQclear(res);
+    return ok;
+}
 
 std::vector<DeviceInfo> DeviceService::list_devices() const {
     std::vector<DeviceInfo> devices;
     if (!conn_)
         return devices;
 
-    // Latest reading per device+sensor so the dashboard can seed tiles.
+    // Latest reading per device+sensor so the dashboard can seed tiles;
+    // left-joined against device_metadata so devices without an assigned
+    // plant/floor still show up (grouped under "Unassigned").
     auto* res = PQexec(static_cast<PGconn*>(conn_),
-                       "SELECT DISTINCT ON (device_id, sensor) "
-                       "device_id, sensor, value, unit, timestamp::text, anomaly "
-                       "FROM readings "
-                       "ORDER BY device_id, sensor, timestamp DESC");
+                       "SELECT DISTINCT ON (r.device_id, r.sensor) "
+                       "r.device_id, r.sensor, r.value, r.unit, r.timestamp::text, r.anomaly, "
+                       "COALESCE(m.plant, 'Unassigned'), COALESCE(m.floor, 'Unassigned') "
+                       "FROM readings r "
+                       "LEFT JOIN device_metadata m ON m.device_id = r.device_id "
+                       "ORDER BY r.device_id, r.sensor, r.timestamp DESC");
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
         PQclear(res);
@@ -34,6 +94,8 @@ std::vector<DeviceInfo> DeviceService::list_devices() const {
         d.last_unit = PQgetvalue(res, i, 3);
         d.last_reading_time = PQgetvalue(res, i, 4);
         d.anomaly = (PQgetvalue(res, i, 5)[0] == 't');
+        d.plant = PQgetvalue(res, i, 6);
+        d.floor = PQgetvalue(res, i, 7);
         devices.push_back(std::move(d));
     }
     PQclear(res);
