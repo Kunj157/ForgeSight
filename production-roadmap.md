@@ -1,9 +1,9 @@
 # ForgeSight — Production Roadmap & Session Handoff
 
-**Last updated:** 2026-07-31 (P1 **done**: PRs #13, #15, #17, #20, #21 merged)  
+**Last updated:** 2026-07-31 (Phase 7 **done**: PR #24 merged)  
 **Branch:** `dev`  
-**Open PRs:** none — #13, #15, #17, #20, #21 all **MERGED** into `dev`  
-**Open issues:** none from this roadmap's P0/P1 list (#10 docs-sync issue still open, tracks this file itself)  
+**Open PRs:** none — #13, #15, #17, #20, #21, #24 all **MERGED** into `dev`  
+**Open issues:** none from this roadmap's P0/P1/P2 list (#10 docs-sync issue still open, tracks this file itself)  
 
 Use this file as the source of truth for “what’s done / what’s next” in a new chat session.
 
@@ -14,10 +14,10 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 | Area | Status |
 |------|--------|
 | Local live demo (sim → MQTT → ingest → DB → API/WS → UI) | **Working** via `scripts/dev-up.sh` |
-| Phases 0–6 (MVP core) | **Done** — device hierarchy (Phase 5) closed 2026-07-31 |
-| Phases 7–9 (offline, packaging, release) | **Not started** |
-| CI / `dev` | Green — PRs #13, #15, #17, #20, #21 merged |
-| Production-grade | **Not yet** — P1 fully done; next is Phase 7 (offline mode) |
+| Phases 0–7 (MVP core + offline mode) | **Done** — offline mode (Phase 7) closed 2026-07-31 |
+| Phases 8–9 (packaging, release) | **Not started** |
+| CI / `dev` | Green — PRs #13, #15, #17, #20, #21, #24 merged |
+| Production-grade | **Not yet** — P1+P2 fully done; next is Phase 8 (packaging + load test) |
 
 **How to run today**
 
@@ -42,7 +42,7 @@ Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`.
 | **4** | REST/WS API | Partial | Rule CRUD HTTP done (PR #9); no auth/TLS |
 | **5** | Dashboard core | Done | Plant→floor→device tree in `DeviceTreePanel.qml`, closed #5 via PR #21 (2026-07-31) |
 | **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; weak pan still open (nice-to-have) |
-| **7** | Offline mode | **Missing** | No SQLite cache / queued acks |
+| **7** | Offline mode | Done | `OfflineCache` (SQLite) restores last-known state on cold start, persists every reading live, queues acks while offline and flushes on reconnect; staleness-aware offline indicator. Closed #23 via PR #24 (2026-07-31) |
 | **8** | Load test + packaging | **Missing** | No Docker for services, no AppImage, no measured load numbers |
 | **9** | First release | **Missing** | `main` empty; no `release.yml` / `deploy.yml` |
 
@@ -112,12 +112,12 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 9. **Fix MQTT bridge lifetime** ✅ (PR [#15](https://github.com/Kunj157/ForgeSight/pull/15), issue #14) — `ApiServer` now owns `MqttBridge` via `std::unique_ptr`; verified with a local ASan build (leak before fix, 0 leaks after, across repeated start/stop cycles).
 
-### P2 — Phase 7 Offline mode
+### P2 — Phase 7 Offline mode ✅ (PR [#24](https://github.com/Kunj157/ForgeSight/pull/24), issue #23)
 
-10. Client SQLite cache of last-known device states.  
-11. Queue alarm acks while offline; flush on reconnect.  
-12. Offline banner + last-updated timestamp (distinct from WS “Disconnected”).  
-13. Unit tests: stale detection, reconnect sync.
+10. Client SQLite cache of last-known device states. ✅ — `ui::OfflineCache` (`QSqlDatabase`/QSQLITE), restored into `DeviceModel` on startup before any network I/O.
+11. Queue alarm acks while offline; flush on reconnect. ✅ — queued via `offlineCache.queueAck()` when `!wsClient.connected`, replayed through `ApiClient::acknowledgeAlarm()` on `connectedChanged`, cleared on `alarmAckSucceeded`.
+12. Offline banner + last-updated timestamp (distinct from WS “Disconnected”). ✅ — `root.offline` = `!wsClient.connected || stale` (10s no-data threshold), sidebar "Updated Xs ago" caption + pending-sync badge, top-bar LIVE/OFFLINE chip driven by the same signal.
+13. Unit tests: stale detection, reconnect sync. ✅ — 13 `OfflineCacheTest` + 2 `DeviceModelTest` cases (157/157 total passing).
 
 ### P3 — Phase 8 Packaging & load
 
@@ -145,13 +145,14 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ```text
 1. Read this file + implementation-plan.md
-2. P1 is fully done — start Phase 7 offline mode (P2, items 10-13):
-   client SQLite cache, queued ack flush, offline banner, reconnect
-   sync tests. This is the next real functional gap.
+2. P1+P2 are fully done — start Phase 8 packaging & load (P3, items 14-17):
+   Dockerfiles/compose for Postgres/Mosquitto/ingestion/api/alarm-engine,
+   a load script with measured latency/CPU numbers, an ASan CI job, and
+   packaging the Qt app (AppImage or similar). This is the next real gap.
 3. Branch from dev: feature/<n>-…
 4. TDD strictly (AGENTS.md)
 5. Small sequential commits; PR → dev
-6. Once Phase 7 closes, move to Phase 8 (Docker packaging + load test)
+6. Once Phase 8 closes, move to Phase 9 (release)
 ```
 
 ### Do not
@@ -184,7 +185,7 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 - [ ] Full stack reproducible via compose or `dev-up.sh`  
 - [ ] Live tiles + alarms + history + ack persist across restart  
 - [ ] Rule CRUD via API (and ideally minimal UI)  
-- [ ] Offline cache + queued ack flush  
+- [x] Offline cache + queued ack flush  
 - [ ] Dockerized backends + documented load numbers  
 - [ ] ASan clean in CI  
 - [ ] Tagged `v1.0.0` on `main` with release artifacts  
@@ -208,3 +209,13 @@ When all boxes above are checked, stretch phases may begin.
   - #5 → PR #21: device hierarchy, full vertical slice — `device_metadata` Postgres table, `DeviceService`/`ApiServer` plant+floor on `/api/devices` (with non-destructive startup seeding for the two known simulator devices), `ApiClient.fetchDevices()`, and `DeviceTreePanel.qml` rewritten from a flat card grid to collapsible plant→floor sections. 6 sequential TDD commits, 142/142 tests green, clang-format clean, smoke-tested against the live stack. Also didn't auto-close on merge — closed #5 manually too (seems `gh pr merge --merge` doesn't reliably trigger the "Closes #n" auto-link in this repo; worth checking manually after every merge until root-caused).
   - **P1 is now fully done.** Also corrected two stale rows in this file while auditing it against the real codebase: Phase 0 (CI) and Phase 4's rule-CRUD note were marked "Partial" when the underlying work (PR #9) had already actually shipped them — the roadmap just hadn't been re-read carefully against the code, only against issue/PR titles.
   - Next real gap: **Phase 7 (offline mode)** — no SQLite client cache or queued-ack-on-reconnect exists anywhere in `ui/` yet.
+- **2026-07-31 (later):** Closed out Phase 7 (offline mode), the last P2 item — #23 → PR #24, 5 sequential TDD commits, 157/157 tests green:
+  - `ui::OfflineCache` — a small SQLite (`QSqlDatabase`/QSQLITE) client cache. Each instance gets a uniquely-named connection so multiple caches can coexist in-process (needed for tests). Hit two Qt/SQLite gotchas worth remembering: (1) `QSqlDatabase::removeDatabase()` warns "connection still in use" unless you first reassign your own member handle to a default-constructed `QSqlDatabase` — otherwise your own live member counts as a reference; (2) a gtest fixture that builds its `QCoreApplication` as a function-local `static` (the usual pattern in this repo's other `ui_tests` files) segfaults at process exit *only* once `QSqlDatabase::addDatabase()` has been called anywhere in the process — `~QCoreApplication`'s `qt_call_post_routines()` runs after QtSql's own lazily-constructed statics have already been destroyed, since C++ static teardown order is the reverse of construction order and QtSql's statics get lazily constructed *after* the app in these tests. Fixed by owning the app via a pointer, explicitly `delete`d in `TearDownTestSuite()` — deterministic teardown, no more racing against atexit ordering across TUs.
+  - `DeviceModel::deviceUpdated` — new signal, single chokepoint for cache writes regardless of whether a reading came from REST bootstrap or a live WS push (both paths already funnel through `updateDevice()`).
+  - `main.cpp` — restores cached state into `DeviceModel` before any network I/O on startup, connects `deviceUpdated → saveDeviceState` for live persistence, and flushes `offlineCache.pendingAcks()` through `ApiClient::acknowledgeAlarm()` on every WS reconnect.
+  - `AlarmPanel.qml` — Acknowledge button checks `wsClient.connected`; queues locally via `offlineCache.queueAck()` when offline instead of firing a doomed request, showing a disabled "Queued" pill (new `clock` icon) until the flush succeeds.
+  - `Main.qml` — `root.offline` is now `!wsClient.connected || stale` (10s no-fresh-data threshold), not just the raw socket state, since the socket can look connected for a few seconds after the backend actually stops publishing. Sidebar gained a live "Updated Xs ago" caption and a pending-sync count badge; the top-bar LIVE/OFFLINE chip and its tooltip now use the same signal.
+  - CI: added `libqt6sql6-sqlite` (the QSQLITE driver plugin — `qt6-base-dev` already ships QtSql's headers/cmake config but not the plugin itself) and linked `Qt6::Sql` in `ui/CMakeLists.txt`.
+  - Repeated the "co-author trailer" gotcha from earlier sessions once, accidentally, when using plain `git commit` for the first commit — caught it immediately and rewrote it with `git commit-tree` before pushing anything; all 5 commits on `dev` are solely authored.
+  - Also hit a self-inflicted near-miss: ran `git checkout <branch> -- .` after an intermediate `git update-ref`-based commit, not realizing `-- .` checks out *every* path from that ref's tree into the working directory, silently discarding the not-yet-committed `main.cpp`/QML changes for the next few commits. Recovered by redoing those edits from scratch (same content, still in this session's context) — no data actually lost, but worth flagging: never use `checkout <ref> -- .` as a "sync HEAD" no-op after `update-ref`: it's a hard reset of *all* tracked paths, not a formality.
+  - **P1 + P2 are now fully done.** Next real gap: **Phase 8 (packaging & load test)** — no Dockerfiles/compose for the backend services, no measured load numbers, no ASan CI job, no packaged desktop artifact.
