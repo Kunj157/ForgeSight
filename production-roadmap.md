@@ -1,9 +1,9 @@
 # ForgeSight — Production Roadmap & Session Handoff
 
-**Last updated:** 2026-07-30 (P1 mostly done: PRs #13, #15, #17 merged)  
+**Last updated:** 2026-07-31 (P1 **done**: PRs #13, #15, #17, #20, #21 merged)  
 **Branch:** `dev`  
-**Open PRs:** none — #13, #15, #17 all **MERGED** into `dev` (2026-07-30)  
-**Open issues:** #5 (device hierarchy, P1 item 6 — scoped plan in issue comments, not started)  
+**Open PRs:** none — #13, #15, #17, #20, #21 all **MERGED** into `dev`  
+**Open issues:** none from this roadmap's P0/P1 list (#10 docs-sync issue still open, tracks this file itself)  
 
 Use this file as the source of truth for “what’s done / what’s next” in a new chat session.
 
@@ -14,10 +14,10 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 | Area | Status |
 |------|--------|
 | Local live demo (sim → MQTT → ingest → DB → API/WS → UI) | **Working** via `scripts/dev-up.sh` |
-| Phases 0–6 (MVP core) | **Mostly done** — only device hierarchy (Phase 5) still open |
+| Phases 0–6 (MVP core) | **Done** — device hierarchy (Phase 5) closed 2026-07-31 |
 | Phases 7–9 (offline, packaging, release) | **Not started** |
-| CI / `dev` | Green — PRs #13, #15, #17 merged |
-| Production-grade | **Not yet** — P1 nearly done (only item 6 left); next is Phase 7 |
+| CI / `dev` | Green — PRs #13, #15, #17, #20, #21 merged |
+| Production-grade | **Not yet** — P1 fully done; next is Phase 7 (offline mode) |
 
 **How to run today**
 
@@ -35,12 +35,12 @@ Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`.
 
 | Phase | Goal | Status | Notes |
 |-------|------|--------|-------|
-| **0** | Repo & CI | Partial | CI thin: missing libpq/Paho/spdlog/Postgres in workflow |
+| **0** | Repo & CI | Done | Postgres/libpq/Paho/spdlog all in `.github/workflows/ci.yml`, green since PR #9 |
 | **1** | Simulators | Partial | Works; no NASA C-MAPSS/SECOM replay yet |
 | **2** | Ingestion | Done | Periodic flush + mutex added |
 | **3** | Alarm engine | Done | DB poll + `--seed` |
-| **4** | REST/WS API | Partial | Missing rule CRUD HTTP; no auth/TLS |
-| **5** | Dashboard core | Partial | Flat cards, not plant→floor→device tree (tracked in #5) |
+| **4** | REST/WS API | Partial | Rule CRUD HTTP done (PR #9); no auth/TLS |
+| **5** | Dashboard core | Done | Plant→floor→device tree in `DeviceTreePanel.qml`, closed #5 via PR #21 (2026-07-31) |
 | **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; weak pan still open (nice-to-have) |
 | **7** | Offline mode | **Missing** | No SQLite cache / queued acks |
 | **8** | Load test + packaging | **Missing** | No Docker for services, no AppImage, no measured load numbers |
@@ -96,10 +96,11 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
    - Index `alarms(timestamp)`, `alarms(acknowledged)`.  
    - Created idempotently via `CREATE INDEX IF NOT EXISTS` alongside existing table DDL.
 
-6. **Device hierarchy (Phase 5 gap)** — **open**, tracked in issue [#5](https://github.com/Kunj157/ForgeSight/issues/5)  
-   - Schema/API: plant → floor → device.  
-   - QML tree or grouped model (not only flat Flow cards) — `DeviceTreePanel.qml` is still a flat searchable card grid.
-   - Scoped implementation plan posted in the issue comments (schema → API → C++ model → QML tree). Not started — needs its own session, it's a bigger multi-layer change than the other P1 items.
+6. **Device hierarchy (Phase 5 gap)** ✅ (PR [#21](https://github.com/Kunj157/ForgeSight/pull/21), issue #5)  
+   - Schema: `device_metadata(device_id, plant, floor)` table, LEFT JOINed into `DeviceService::list_devices()`, defaults to "Unassigned".
+   - API: `/api/devices` returns `plant`/`floor`; `ApiServer` seeds the two known simulator devices on startup (non-destructively).
+   - C++ model: `DeviceModel` gained `updateDeviceMeta()` + `plants()`/`floors()`/`devicesFor()` query helpers.
+   - QML: `DeviceTreePanel.qml` replaced the flat `Flow` with collapsible plant → floor sections (nested `Repeater`s, not `TreeView` — kept it dependency-free).
 
 7. **History client polish** ✅ (PR [#17](https://github.com/Kunj157/ForgeSight/pull/17), issue #16)  
    - Routed `HistoryPanel.qml` through `ApiClient.fetchHistory()` (honors `FORGESIGHT_API`) instead of a raw hardcoded `XMLHttpRequest`.
@@ -144,13 +145,13 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ```text
 1. Read this file + implementation-plan.md
-2. Pick up issue #5 (device hierarchy, last open P1 item) — see the
-   scoped plan in its comments — or move straight to Phase 7 offline
-   if hierarchy is deprioritized.
+2. P1 is fully done — start Phase 7 offline mode (P2, items 10-13):
+   client SQLite cache, queued ack flush, offline banner, reconnect
+   sync tests. This is the next real functional gap.
 3. Branch from dev: feature/<n>-…
 4. TDD strictly (AGENTS.md)
 5. Small sequential commits; PR → dev
-6. Once #5 is closed, P1 is fully done — start Phase 7 offline (P2)
+6. Once Phase 7 closes, move to Phase 8 (Docker packaging + load test)
 ```
 
 ### Do not
@@ -203,3 +204,7 @@ When all boxes above are checked, stretch phases may begin.
   - Housekeeping: closed stale issue #7 (superseded by PR #9), renamed/rescoped #5 to just the device-hierarchy gap with an implementation plan posted in comments, pruned merged remote branches.
   - Only P1 item remaining: #5 (device hierarchy) — intentionally left for a dedicated session given its size (schema + API + model + QML tree layers).
   - Note: all commits in this session were made via `git commit-tree` rather than plain `git commit`, to avoid the Cursor agent's automatic `Co-authored-by: Cursor` trailer being appended (that trailer is injected by the IDE/agent tooling itself, not something controllable from commit message content — see Cursor Settings → Agent → Attribution if this needs to change globally).
+- **2026-07-31:** UI modernization (issue #19) merged via PR #20 — didn't get closed automatically by "Closes #19" on merge, closed manually. Then closed out the last open P1 item:
+  - #5 → PR #21: device hierarchy, full vertical slice — `device_metadata` Postgres table, `DeviceService`/`ApiServer` plant+floor on `/api/devices` (with non-destructive startup seeding for the two known simulator devices), `ApiClient.fetchDevices()`, and `DeviceTreePanel.qml` rewritten from a flat card grid to collapsible plant→floor sections. 6 sequential TDD commits, 142/142 tests green, clang-format clean, smoke-tested against the live stack. Also didn't auto-close on merge — closed #5 manually too (seems `gh pr merge --merge` doesn't reliably trigger the "Closes #n" auto-link in this repo; worth checking manually after every merge until root-caused).
+  - **P1 is now fully done.** Also corrected two stale rows in this file while auditing it against the real codebase: Phase 0 (CI) and Phase 4's rule-CRUD note were marked "Partial" when the underlying work (PR #9) had already actually shipped them — the roadmap just hadn't been re-read carefully against the code, only against issue/PR titles.
+  - Next real gap: **Phase 7 (offline mode)** — no SQLite client cache or queued-ack-on-reconnect exists anywhere in `ui/` yet.
