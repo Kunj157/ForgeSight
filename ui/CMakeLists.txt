@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Quick WebSockets Charts PrintSupport Network)
+find_package(Qt6 REQUIRED COMPONENTS Quick WebSockets Charts PrintSupport Network Sql)
 
 set(CMAKE_AUTOMOC ON)
 
@@ -10,6 +10,7 @@ add_library(ui_lib STATIC
     src/csv_export.cpp
     src/pdf_export.cpp
     src/api_client.cpp
+    src/offline_cache.cpp
     include/ui/device_model.h
     include/ui/alarm_model.h
     include/ui/ws_client.h
@@ -17,6 +18,7 @@ add_library(ui_lib STATIC
     include/ui/csv_export.h
     include/ui/pdf_export.h
     include/ui/api_client.h
+    include/ui/offline_cache.h
 )
 
 target_include_directories(ui_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -26,4 +28,5 @@ target_link_libraries(ui_lib PUBLIC
     Qt6::Charts
     Qt6::PrintSupport
     Qt6::Network
+    Qt6::Sql
 )

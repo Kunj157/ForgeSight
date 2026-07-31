@@ -17,6 +17,7 @@ add_executable(ui_tests
     test_export.cpp
     test_ws_client.cpp
     test_api_client.cpp
+    test_offline_cache.cpp
 )
 
 target_link_libraries(ui_tests PRIVATE
