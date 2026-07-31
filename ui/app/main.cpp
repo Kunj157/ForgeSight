@@ -37,6 +37,8 @@ int main(int argc, char* argv[]) {
     // Seed tiles from REST, then keep them live via WebSocket.
     QObject::connect(&apiClient, &ui::ApiClient::readingReceived, &deviceModel,
                      &ui::DeviceModel::updateDevice);
+    QObject::connect(&apiClient, &ui::ApiClient::deviceMetaReceived, &deviceModel,
+                     &ui::DeviceModel::updateDeviceMeta);
     QObject::connect(&apiClient, &ui::ApiClient::alarmReceived, &alarmModel,
                      [&alarmModel](qint64 id, const QString& deviceId, const QString& sensor,
                                    double value, const QString& severity, const QString& message,
