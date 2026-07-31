@@ -33,6 +33,7 @@ jobs:
             cmake g++ pkg-config \
             nlohmann-json3-dev libspdlog-dev libpq-dev \
             libpaho-mqtt-dev libpaho-mqttpp-dev \
+            libqt6sql6-sqlite \
             qt6-base-dev qt6-declarative-dev qt6-charts-dev \
             qt6-httpserver-dev qt6-websockets-dev \
             qml6-module-qtquick \

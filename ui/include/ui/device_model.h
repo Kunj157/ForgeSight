@@ -68,6 +68,15 @@ class DeviceModel : public QAbstractListModel {
   Q_SIGNALS:
     void countChanged();
 
+    /// Emitted whenever a reading is inserted or updated, carrying the full
+    /// current row (including whatever plant/floor is known at the time).
+    /// This is the single chokepoint for persisting live state to the
+    /// offline cache, regardless of whether the reading came from the REST
+    /// bootstrap or a live WS push.
+    void deviceUpdated(const QString& device_id, const QString& sensor, double value,
+                       const QString& unit, const QString& timestamp, bool anomaly,
+                       const QString& plant, const QString& floor);
+
   private:
     int find_device(const QString& device_id, const QString& sensor) const;
     static QString compute_status(bool anomaly, double value);

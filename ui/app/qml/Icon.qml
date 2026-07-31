@@ -124,6 +124,12 @@ Canvas {
             ctx.stroke()
             break
 
+        case "clock": // pending / queued for sync
+            circle(cx, cy, s * 0.36, false)
+            line(cx, cy, cx, cy - s * 0.20)
+            line(cx, cy, cx + s * 0.15, cy)
+            break
+
         case "filter":
             ctx.beginPath()
             ctx.moveTo(p, p)

@@ -191,6 +191,34 @@ TEST_F(DeviceModelTest, DevicesForReturnsEmptyForUnknownGroup) {
     EXPECT_TRUE(model.devicesFor("Nowhere", "Nothing").empty());
 }
 
+// ---- DeviceModel::deviceUpdated (offline cache persistence hook) ----
+
+TEST_F(DeviceModelTest, UpdateDeviceEmitsDeviceUpdatedWithCurrentPlantFloor) {
+    ui::DeviceModel model;
+    model.updateDeviceMeta("pump-001", "Plant A", "Floor 1");
+
+    QSignalSpy spy(&model, &ui::DeviceModel::deviceUpdated);
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+
+    ASSERT_EQ(spy.count(), 1);
+    EXPECT_EQ(spy[0][0].toString(), "pump-001");
+    EXPECT_EQ(spy[0][1].toString(), "temperature");
+    EXPECT_DOUBLE_EQ(spy[0][2].toDouble(), 65.0);
+    EXPECT_EQ(spy[0][6].toString(), "Plant A");
+    EXPECT_EQ(spy[0][7].toString(), "Floor 1");
+}
+
+TEST_F(DeviceModelTest, UpdateDeviceEmitsDeviceUpdatedOnSubsequentUpdatesToo) {
+    ui::DeviceModel model;
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+
+    QSignalSpy spy(&model, &ui::DeviceModel::deviceUpdated);
+    model.updateDevice("pump-001", "temperature", 80.0, "°C", "2026-07-26T10:01:00Z", false);
+
+    ASSERT_EQ(spy.count(), 1);
+    EXPECT_DOUBLE_EQ(spy[0][2].toDouble(), 80.0);
+}
+
 // ---- AlarmModel Tests ----
 
 class AlarmModelTest : public ::testing::Test {
