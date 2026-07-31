@@ -68,6 +68,8 @@ class DeviceServiceTest : public ::testing::Test {
             PQexec(static_cast<PGconn*>(conn), "DELETE FROM readings WHERE device_id = 'svc-test'");
             PQexec(static_cast<PGconn*>(conn),
                    "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
+            PQexec(static_cast<PGconn*>(conn),
+                   "DELETE FROM device_metadata WHERE device_id = 'svc-test'");
             PQfinish(static_cast<PGconn*>(conn));
         }
     }
@@ -137,6 +139,81 @@ TEST_F(DeviceServiceTest, NullConnReturnsEmpty) {
     api::DeviceService svc(nullptr);
     EXPECT_TRUE(svc.list_devices().empty());
     EXPECT_TRUE(svc.get_history("a", "b", "c").empty());
+}
+
+TEST_F(DeviceServiceTest, DeviceWithoutLocationDefaultsToUnassigned) {
+    seed_reading(conn, "svc-test", "temperature", 65.0, "2026-07-26T10:00:00Z");
+    api::DeviceService svc(conn);
+    auto devices = svc.list_devices();
+
+    bool found = false;
+    for (const auto& d : devices) {
+        if (d.id != "svc-test")
+            continue;
+        found = true;
+        EXPECT_EQ(d.plant, "Unassigned");
+        EXPECT_EQ(d.floor, "Unassigned");
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(DeviceServiceTest, SetDeviceLocationThenListDevicesReflectsIt) {
+    seed_reading(conn, "svc-test", "temperature", 65.0, "2026-07-26T10:00:00Z");
+    api::DeviceService svc(conn);
+    EXPECT_TRUE(svc.set_device_location("svc-test", "Plant A", "Floor 2"));
+
+    auto devices = svc.list_devices();
+    bool found = false;
+    for (const auto& d : devices) {
+        if (d.id != "svc-test")
+            continue;
+        found = true;
+        EXPECT_EQ(d.plant, "Plant A");
+        EXPECT_EQ(d.floor, "Floor 2");
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(DeviceServiceTest, SeedDefaultLocationDoesNotOverwriteExisting) {
+    seed_reading(conn, "svc-test", "temperature", 65.0, "2026-07-26T10:00:00Z");
+    api::DeviceService svc(conn);
+    svc.set_device_location("svc-test", "Plant A", "Floor 1");
+    svc.seed_default_location("svc-test", "Plant Z", "Floor Z");
+
+    auto devices = svc.list_devices();
+    for (const auto& d : devices) {
+        if (d.id == "svc-test") {
+            EXPECT_EQ(d.plant, "Plant A");
+            EXPECT_EQ(d.floor, "Floor 1");
+        }
+    }
+}
+
+TEST_F(DeviceServiceTest, SeedDefaultLocationAssignsWhenUnset) {
+    seed_reading(conn, "svc-test", "temperature", 65.0, "2026-07-26T10:00:00Z");
+    api::DeviceService svc(conn);
+    svc.seed_default_location("svc-test", "Plant A", "Floor 1");
+
+    auto devices = svc.list_devices();
+    for (const auto& d : devices) {
+        if (d.id == "svc-test") {
+            EXPECT_EQ(d.plant, "Plant A");
+            EXPECT_EQ(d.floor, "Floor 1");
+        }
+    }
+}
+
+TEST_F(DeviceServiceTest, SetDeviceLocationUpsertsOnRepeatedCalls) {
+    seed_reading(conn, "svc-test", "temperature", 65.0, "2026-07-26T10:00:00Z");
+    api::DeviceService svc(conn);
+    EXPECT_TRUE(svc.set_device_location("svc-test", "Plant A", "Floor 1"));
+    EXPECT_TRUE(svc.set_device_location("svc-test", "Plant A", "Floor 3"));
+
+    auto devices = svc.list_devices();
+    for (const auto& d : devices) {
+        if (d.id == "svc-test")
+            EXPECT_EQ(d.floor, "Floor 3");
+    }
 }
 
 class RuleServiceTest : public ::testing::Test {
