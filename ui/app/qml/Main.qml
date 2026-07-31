@@ -48,15 +48,36 @@ Window {
         }
     }
 
+    // Ambient glow in the top-left corner — the kind of soft color wash
+    // Linear/Vercel dashboards use to keep a dark UI from feeling flat.
+    Canvas {
+        anchors.fill: parent
+        z: -1
+        onPaint: {
+            var ctx = getContext("2d")
+            ctx.reset()
+            var g = ctx.createRadialGradient(width * 0.12, 0, 0, width * 0.12, 0, width * 0.55)
+            g.addColorStop(0, "#1a2a5533")
+            g.addColorStop(1, "#00000000")
+            ctx.fillStyle = g
+            ctx.fillRect(0, 0, width, height)
+        }
+    }
+
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // —— Left sidebar (Grafana / Ignition style) ——
+        // —— Left sidebar ——
         Rectangle {
             Layout.preferredWidth: Theme.sidebarWidth
             Layout.fillHeight: true
-            color: Theme.bgSidebar
+
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+                GradientStop { position: 0.0; color: Theme.bgSidebar }
+                GradientStop { position: 1.0; color: Theme.bgSidebarBottom }
+            }
 
             Rectangle {
                 anchors.right: parent.right
@@ -74,7 +95,7 @@ Window {
                 // Brand
                 Item {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 64
+                    Layout.preferredHeight: 68
 
                     RowLayout {
                         anchors.fill: parent
@@ -83,14 +104,18 @@ Window {
                         spacing: Theme.spaceMd
 
                         Rectangle {
-                            width: 32; height: 32; radius: Theme.radiusMd
-                            color: Theme.accent
-                            Label {
+                            width: 34; height: 34; radius: Theme.radiusMd
+                            gradient: Gradient {
+                                orientation: Gradient.Vertical
+                                GradientStop { position: 0.0; color: Theme.accent }
+                                GradientStop { position: 1.0; color: Theme.accent2 }
+                            }
+                            Icon {
                                 anchors.centerIn: parent
-                                text: "FS"
-                                font.bold: true
-                                font.pixelSize: Theme.fontSm
+                                width: 18; height: 18
+                                name: "layers"
                                 color: "#ffffff"
+                                strokeWidth: 1.7
                             }
                         }
 
@@ -99,12 +124,14 @@ Window {
                             Layout.fillWidth: true
                             Label {
                                 text: "ForgeSight"
+                                font.family: Theme.fontFamily
                                 font.bold: true
                                 font.pixelSize: Theme.fontLg
                                 color: Theme.textPrimary
                             }
                             Label {
                                 text: "Plant Monitor"
+                                font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontXs
                                 color: Theme.textMuted
                             }
@@ -124,38 +151,51 @@ Window {
                     Layout.topMargin: Theme.spaceLg
                     Layout.bottomMargin: Theme.spaceSm
                     text: "MONITORING"
+                    font.family: Theme.fontFamily
                     font.pixelSize: 10
                     font.bold: true
-                    font.letterSpacing: 1.2
+                    font.letterSpacing: 1.4
                     color: Theme.textMuted
                 }
 
                 Repeater {
                     model: [
-                        { label: "Devices", index: 0 },
-                        { label: "Alarms", index: 1 },
-                        { label: "History", index: 2 },
+                        { label: "Devices", index: 0, icon: "grid" },
+                        { label: "Alarms", index: 1, icon: "bell" },
+                        { label: "History", index: 2, icon: "chart" },
                     ]
                     delegate: Item {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 40
+                        Layout.preferredHeight: 42
                         Layout.leftMargin: Theme.spaceSm
                         Layout.rightMargin: Theme.spaceSm
 
+                        property bool active: root.navIndex === modelData.index
+
                         Rectangle {
+                            id: navBg
                             anchors.fill: parent
                             radius: Theme.radiusMd
-                            color: root.navIndex === modelData.index
-                                   ? Theme.accentSoft : "transparent"
+                            color: parent.active ? Theme.accentSoft
+                                   : (navMouse.containsMouse ? Theme.bgCardHover : "transparent")
+                            border.width: parent.active ? 1 : 0
+                            border.color: Qt.rgba(0.36, 0.55, 1.0, 0.35)
+
+                            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 
                             Rectangle {
-                                visible: root.navIndex === modelData.index
+                                visible: parent.parent.active
                                 anchors.left: parent.left
                                 anchors.verticalCenter: parent.verticalCenter
+                                anchors.leftMargin: -1
                                 width: 3
                                 height: 20
-                                radius: 1
-                                color: Theme.accent
+                                radius: 1.5
+                                gradient: Gradient {
+                                    orientation: Gradient.Vertical
+                                    GradientStop { position: 0.0; color: Theme.accent }
+                                    GradientStop { position: 1.0; color: Theme.accent2 }
+                                }
                             }
 
                             RowLayout {
@@ -164,11 +204,19 @@ Window {
                                 anchors.rightMargin: Theme.spaceMd
                                 spacing: Theme.spaceMd
 
+                                Icon {
+                                    name: modelData.icon
+                                    width: 16; height: 16
+                                    color: parent.parent.parent.active ? Theme.accent : Theme.textMuted
+                                    Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+                                }
+
                                 Label {
                                     text: modelData.label
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontMd
-                                    font.bold: root.navIndex === modelData.index
-                                    color: root.navIndex === modelData.index
+                                    font.bold: parent.parent.parent.active
+                                    color: parent.parent.parent.active
                                            ? Theme.textPrimary : Theme.textSecondary
                                     Layout.fillWidth: true
                                 }
@@ -183,6 +231,7 @@ Window {
                                         id: countDev
                                         anchors.centerIn: parent
                                         text: deviceModel.count
+                                        font.family: Theme.fontFamily
                                         font.pixelSize: 10
                                         font.bold: true
                                         color: Theme.textSecondary
@@ -201,6 +250,7 @@ Window {
                                         id: countAlm
                                         anchors.centerIn: parent
                                         text: alarmCount
+                                        font.family: Theme.fontFamily
                                         font.pixelSize: 10
                                         font.bold: true
                                         color: Theme.critical
@@ -209,6 +259,7 @@ Window {
                             }
 
                             MouseArea {
+                                id: navMouse
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
                                 hoverEnabled: true
@@ -229,16 +280,37 @@ Window {
 
                 Item {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 56
+                    Layout.preferredHeight: 60
 
                     RowLayout {
                         anchors.fill: parent
                         anchors.margins: Theme.spaceLg
                         spacing: Theme.spaceSm
 
-                        Rectangle {
-                            width: 8; height: 8; radius: 4
-                            color: wsClient.connected ? Theme.success : Theme.critical
+                        Item {
+                            width: 10; height: 10
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 10; height: 10; radius: 5
+                                color: wsClient.connected ? Theme.success : Theme.critical
+                            }
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 10; height: 10; radius: 5
+                                color: wsClient.connected ? Theme.success : Theme.critical
+                                visible: wsClient.connected
+                                opacity: 0.6
+                                SequentialAnimation on scale {
+                                    running: wsClient.connected
+                                    loops: Animation.Infinite
+                                    NumberAnimation { from: 1.0; to: 2.4; duration: 1400; easing.type: Easing.OutCubic }
+                                }
+                                SequentialAnimation on opacity {
+                                    running: wsClient.connected
+                                    loops: Animation.Infinite
+                                    NumberAnimation { from: 0.6; to: 0.0; duration: 1400; easing.type: Easing.OutCubic }
+                                }
+                            }
                         }
 
                         ColumnLayout {
@@ -246,12 +318,14 @@ Window {
                             Layout.fillWidth: true
                             Label {
                                 text: wsClient.connected ? "Connected" : "Disconnected"
+                                font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSm
                                 font.bold: true
                                 color: Theme.textPrimary
                             }
                             Label {
                                 text: "ws://127.0.0.1:8081"
+                                font.family: Theme.fontFamilyMono
                                 font.pixelSize: 10
                                 color: Theme.textMuted
                                 elide: Text.ElideMiddle
@@ -293,6 +367,7 @@ Window {
                         text: root.navIndex === 0 ? "Devices"
                             : root.navIndex === 1 ? "Alarms"
                             : "History"
+                        font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontXl
                         font.bold: true
                         color: Theme.textPrimary
@@ -306,6 +381,7 @@ Window {
                                  : root.navIndex === 1
                                  ? "Active and acknowledged alarm events"
                                  : "Historical trends and export")
+                        font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSm
                         color: root.statusHint.length > 0 ? Theme.warning : Theme.textMuted
                         Layout.fillWidth: true
@@ -313,46 +389,58 @@ Window {
 
                     // KPI chips — muted unless abnormal
                     Rectangle {
-                        height: 28
-                        width: kpiDev.implicitWidth + 20
-                        radius: Theme.radiusSm
+                        height: 30
+                        width: kpiDevRow.implicitWidth + 22
+                        radius: Theme.radiusMd
                         color: Theme.bgElevated
                         border.color: Theme.border
                         border.width: 1
-                        Label {
-                            id: kpiDev
+                        RowLayout {
+                            id: kpiDevRow
                             anchors.centerIn: parent
-                            text: deviceModel.count + " devices"
-                            font.pixelSize: Theme.fontXs
-                            color: Theme.textSecondary
+                            spacing: 6
+                            Icon { name: "grid"; width: 12; height: 12; color: Theme.textSecondary }
+                            Label {
+                                text: deviceModel.count + " devices"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontXs
+                                color: Theme.textSecondary
+                            }
                         }
                     }
 
                     Rectangle {
-                        height: 28
-                        width: kpiAlm.implicitWidth + 20
-                        radius: Theme.radiusSm
+                        height: 30
+                        width: kpiAlmRow.implicitWidth + 22
+                        radius: Theme.radiusMd
                         color: alarmCount > 0 ? Theme.criticalBg : Theme.bgElevated
                         border.color: alarmCount > 0 ? Theme.critical : Theme.border
                         border.width: 1
-                        Label {
-                            id: kpiAlm
+                        Behavior on color { ColorAnimation { duration: Theme.motionMed } }
+                        RowLayout {
+                            id: kpiAlmRow
                             anchors.centerIn: parent
-                            text: alarmCount + " unacked"
-                            font.pixelSize: Theme.fontXs
-                            font.bold: alarmCount > 0
-                            color: alarmCount > 0 ? Theme.critical : Theme.textSecondary
+                            spacing: 6
+                            Icon { name: "bell"; width: 12; height: 12; color: alarmCount > 0 ? Theme.critical : Theme.textSecondary }
+                            Label {
+                                text: alarmCount + " unacked"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontXs
+                                font.bold: alarmCount > 0
+                                color: alarmCount > 0 ? Theme.critical : Theme.textSecondary
+                            }
                         }
                     }
 
                     Rectangle {
-                        height: 28
-                        width: kpiLive.implicitWidth + 24
-                        radius: Theme.radiusSm
+                        height: 30
+                        width: kpiLiveRow.implicitWidth + 24
+                        radius: Theme.radiusMd
                         color: wsClient.connected ? Theme.successBg : Theme.criticalBg
                         border.color: wsClient.connected ? Theme.success : Theme.critical
                         border.width: 1
                         RowLayout {
+                            id: kpiLiveRow
                             anchors.centerIn: parent
                             spacing: 6
                             Rectangle {
@@ -360,10 +448,11 @@ Window {
                                 color: wsClient.connected ? Theme.success : Theme.critical
                             }
                             Label {
-                                id: kpiLive
                                 text: wsClient.connected ? "LIVE" : "OFFLINE"
+                                font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontXs
                                 font.bold: true
+                                font.letterSpacing: 0.6
                                 color: wsClient.connected ? Theme.success : Theme.critical
                             }
                         }
@@ -405,6 +494,7 @@ Window {
                         Label {
                             anchors.centerIn: parent
                             text: "Loading history view…"
+                            font.family: Theme.fontFamily
                             color: Theme.textMuted
                             font.pixelSize: Theme.fontMd
                         }

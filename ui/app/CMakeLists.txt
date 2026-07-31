@@ -14,6 +14,8 @@ qt_add_qml_module(factory-pulse
         qml/DeviceTreePanel.qml
         qml/AlarmPanel.qml
         qml/HistoryPanel.qml
+        qml/Icon.qml
+        qml/ShadowCard.qml
         qml/Theme.js
 )
 

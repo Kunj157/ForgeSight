@@ -18,15 +18,32 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.spaceSm
 
-            Label {
-                text: alarmModel.unacknowledgedCount + " unacknowledged"
-                font.pixelSize: Theme.fontSm
-                font.bold: alarmModel.unacknowledgedCount > 0
-                color: alarmModel.unacknowledgedCount > 0
-                       ? Theme.critical : Theme.textSecondary
+            RowLayout {
+                spacing: 6
+                Rectangle {
+                    visible: alarmModel.unacknowledgedCount > 0
+                    width: 7; height: 7; radius: 3.5
+                    color: Theme.critical
+                    Layout.alignment: Qt.AlignVCenter
+                }
+                Label {
+                    text: alarmModel.unacknowledgedCount + " unacknowledged"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSm
+                    font.bold: alarmModel.unacknowledgedCount > 0
+                    color: alarmModel.unacknowledgedCount > 0
+                           ? Theme.critical : Theme.textSecondary
+                }
             }
 
             Item { Layout.fillWidth: true }
+
+            Icon {
+                name: "filter"
+                width: 13; height: 13
+                color: Theme.textMuted
+                Layout.rightMargin: 2
+            }
 
             Repeater {
                 model: [
@@ -37,18 +54,19 @@ Rectangle {
                 ]
                 delegate: Rectangle {
                     height: 30
-                    width: filterLabel.implicitWidth + 18
+                    width: filterLabel.implicitWidth + 20
                     radius: Theme.radiusMd
-                    color: filterSeverity === modelData.sev
-                           ? Theme.bgElevated : "transparent"
-                    border.color: filterSeverity === modelData.sev
-                                  ? Theme.borderStrong : Theme.border
+                    property bool sel: filterSeverity === modelData.sev
+                    color: sel ? Theme.bgElevated : (filterMouse.containsMouse ? Theme.bgCardHover : "transparent")
+                    border.color: sel ? Theme.borderStrong : Theme.border
                     border.width: 1
+                    Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 
                     Label {
                         id: filterLabel
                         anchors.centerIn: parent
                         text: modelData.label
+                        font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontXs
                         font.bold: filterSeverity === modelData.sev
                         color: {
@@ -62,7 +80,9 @@ Rectangle {
                     }
 
                     MouseArea {
+                        id: filterMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: filterSeverity = modelData.sev
                     }
@@ -71,20 +91,28 @@ Rectangle {
 
             Rectangle {
                 height: 30
-                width: clearLbl.implicitWidth + 18
+                width: clearRow.implicitWidth + 20
                 radius: Theme.radiusMd
-                color: "transparent"
+                color: clearMouse.containsMouse ? Theme.bgCardHover : "transparent"
                 border.color: Theme.border
                 border.width: 1
-                Label {
-                    id: clearLbl
+                Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+                RowLayout {
+                    id: clearRow
                     anchors.centerIn: parent
-                    text: "Clear all"
-                    font.pixelSize: Theme.fontXs
-                    color: Theme.textSecondary
+                    spacing: 6
+                    Icon { name: "trash"; width: 12; height: 12; color: Theme.textSecondary }
+                    Label {
+                        text: "Clear all"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontXs
+                        color: Theme.textSecondary
+                    }
                 }
                 MouseArea {
+                    id: clearMouse
                     anchors.fill: parent
+                    hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: alarmModel.clear()
                 }
@@ -94,9 +122,9 @@ Rectangle {
         // Column headers
         Rectangle {
             Layout.fillWidth: true
-            height: 32
+            height: 34
             color: Theme.bgElevated
-            radius: Theme.radiusSm
+            radius: Theme.radiusMd
 
             RowLayout {
                 anchors.fill: parent
@@ -106,45 +134,50 @@ Rectangle {
 
                 Label {
                     text: "SEVERITY"
+                    font.family: Theme.fontFamily
                     font.pixelSize: 10
                     font.bold: true
-                    font.letterSpacing: 0.8
+                    font.letterSpacing: 0.9
                     color: Theme.textMuted
                     Layout.preferredWidth: 90
                 }
                 Label {
                     text: "DEVICE / SENSOR"
+                    font.family: Theme.fontFamily
                     font.pixelSize: 10
                     font.bold: true
-                    font.letterSpacing: 0.8
+                    font.letterSpacing: 0.9
                     color: Theme.textMuted
                     Layout.preferredWidth: 180
                 }
                 Label {
                     text: "MESSAGE"
+                    font.family: Theme.fontFamily
                     font.pixelSize: 10
                     font.bold: true
-                    font.letterSpacing: 0.8
+                    font.letterSpacing: 0.9
                     color: Theme.textMuted
                     Layout.fillWidth: true
                 }
                 Label {
                     text: "VALUE"
+                    font.family: Theme.fontFamily
                     font.pixelSize: 10
                     font.bold: true
-                    font.letterSpacing: 0.8
+                    font.letterSpacing: 0.9
                     color: Theme.textMuted
                     Layout.preferredWidth: 70
                 }
                 Label {
                     text: "TIME"
+                    font.family: Theme.fontFamily
                     font.pixelSize: 10
                     font.bold: true
-                    font.letterSpacing: 0.8
+                    font.letterSpacing: 0.9
                     color: Theme.textMuted
                     Layout.preferredWidth: 160
                 }
-                Item { Layout.preferredWidth: 100 }
+                Item { Layout.preferredWidth: 110 }
             }
         }
 
@@ -161,10 +194,17 @@ Rectangle {
             delegate: Rectangle {
                 id: row
                 width: alarmList.width
-                height: visible ? 52 : 0
-                color: index % 2 === 0 ? Theme.bgCard : Theme.bgPanel
-                border.color: Theme.divider
-                border.width: 0
+                height: visible ? 54 : 0
+                color: rowMouse.containsMouse ? Theme.bgCardHover
+                       : (index % 2 === 0 ? Theme.bgCard : Theme.bgPanel)
+                Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+
+                MouseArea {
+                    id: rowMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                }
 
                 // bottom hairline
                 Rectangle {
@@ -196,17 +236,26 @@ Rectangle {
 
                     Rectangle {
                         Layout.preferredWidth: 90
-                        height: 22
+                        height: 24
                         radius: Theme.radiusSm
                         color: Theme.statusBg(severity)
                         border.color: Theme.statusColor(severity)
                         border.width: 1
-                        Label {
+                        RowLayout {
                             anchors.centerIn: parent
-                            text: severity.toUpperCase()
-                            font.pixelSize: 10
-                            font.bold: true
-                            color: Theme.statusColor(severity)
+                            spacing: 4
+                            Icon {
+                                name: severity === "critical" ? "bell" : "activity"
+                                width: 10; height: 10
+                                color: Theme.statusColor(severity)
+                            }
+                            Label {
+                                text: severity.toUpperCase()
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 10
+                                font.bold: true
+                                color: Theme.statusColor(severity)
+                            }
                         }
                     }
 
@@ -215,6 +264,7 @@ Rectangle {
                         spacing: 1
                         Label {
                             text: deviceId
+                            font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSm
                             font.bold: true
                             color: Theme.textPrimary
@@ -223,6 +273,7 @@ Rectangle {
                         }
                         Label {
                             text: sensor
+                            font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontXs
                             color: Theme.textMuted
                             elide: Text.ElideRight
@@ -232,6 +283,7 @@ Rectangle {
 
                     Label {
                         text: message
+                        font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSm
                         color: Theme.textSecondary
                         elide: Text.ElideRight
@@ -240,6 +292,7 @@ Rectangle {
 
                     Label {
                         text: value.toFixed(1)
+                        font.family: Theme.fontFamilyMono
                         font.pixelSize: Theme.fontSm
                         font.bold: true
                         color: Theme.statusColor(severity)
@@ -249,6 +302,7 @@ Rectangle {
 
                     Label {
                         text: timestamp
+                        font.family: Theme.fontFamilyMono
                         font.pixelSize: Theme.fontXs
                         color: Theme.textMuted
                         Layout.preferredWidth: 160
@@ -256,36 +310,52 @@ Rectangle {
                     }
 
                     Rectangle {
-                        Layout.preferredWidth: 100
-                        height: 28
+                        Layout.preferredWidth: 110
+                        height: 30
                         radius: Theme.radiusMd
                         visible: !acknowledged
-                        color: Theme.successBg
+                        color: ackMouse.containsMouse ? Theme.success : Theme.successBg
                         border.color: Theme.success
                         border.width: 1
+                        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 
-                        Label {
+                        RowLayout {
                             anchors.centerIn: parent
-                            text: "Acknowledge"
-                            font.pixelSize: Theme.fontXs
-                            font.bold: true
-                            color: Theme.success
+                            spacing: 5
+                            Icon {
+                                name: "check"
+                                width: 11; height: 11
+                                color: ackMouse.containsMouse ? Theme.textInverse : Theme.success
+                            }
+                            Label {
+                                text: "Acknowledge"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontXs
+                                font.bold: true
+                                color: ackMouse.containsMouse ? Theme.textInverse : Theme.success
+                            }
                         }
 
                         MouseArea {
+                            id: ackMouse
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: apiClient.acknowledgeAlarm(model.id)
                         }
                     }
 
-                    Label {
-                        Layout.preferredWidth: 100
+                    RowLayout {
+                        Layout.preferredWidth: 110
                         visible: acknowledged
-                        text: "Acked"
-                        font.pixelSize: Theme.fontXs
-                        color: Theme.success
-                        horizontalAlignment: Text.AlignHCenter
+                        spacing: 5
+                        Icon { name: "check"; width: 11; height: 11; color: Theme.success }
+                        Label {
+                            text: "Acked"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontXs
+                            color: Theme.success
+                        }
                     }
                 }
             }
@@ -294,12 +364,19 @@ Rectangle {
 
     Column {
         anchors.centerIn: parent
-        spacing: Theme.spaceSm
+        spacing: Theme.spaceMd
         visible: alarmModel.count === 0
 
+        Icon {
+            anchors.horizontalCenter: parent.horizontalCenter
+            name: "bell"
+            width: 32; height: 32
+            color: Theme.textMuted
+        }
         Label {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "No active alarms"
+            font.family: Theme.fontFamily
             font.pixelSize: Theme.fontLg
             font.bold: true
             color: Theme.textSecondary
@@ -307,6 +384,7 @@ Rectangle {
         Label {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "The plant is operating within configured thresholds."
+            font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSm
             color: Theme.textMuted
         }
