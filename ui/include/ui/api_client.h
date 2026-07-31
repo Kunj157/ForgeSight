@@ -29,6 +29,7 @@ class ApiClient : public QObject {
     Q_INVOKABLE void acknowledgeAlarm(qint64 id);
     Q_INVOKABLE void fetchHistory(const QString& deviceId, const QString& sensor,
                                   const QString& since);
+    Q_INVOKABLE void fetchDevices();
 
   Q_SIGNALS:
     void baseUrlChanged();
@@ -44,6 +45,7 @@ class ApiClient : public QObject {
     void historyPointReceived(const QString& deviceId, const QString& sensor, double value,
                               const QString& unit, const QString& timestamp, bool anomaly);
     void historyLoadFinished(bool ok, const QString& error);
+    void deviceMetaReceived(const QString& deviceId, const QString& plant, const QString& floor);
 
   private:
     void set_busy(bool busy);

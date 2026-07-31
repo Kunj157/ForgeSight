@@ -35,6 +35,7 @@ void ApiClient::set_busy(bool busy) {
 void ApiClient::bootstrap() {
     fetchLatestReadings();
     fetchAlarms();
+    fetchDevices();
 }
 
 void ApiClient::get_json(const QString& path, const std::function<void(const QByteArray&)>& on_ok) {
@@ -123,6 +124,22 @@ void ApiClient::fetchAlarms() {
                                  o.value(QStringLiteral("message")).toString(),
                                  o.value(QStringLiteral("timestamp")).toString(),
                                  o.value(QStringLiteral("acknowledged")).toBool());
+        }
+    });
+}
+
+void ApiClient::fetchDevices() {
+    get_json(QStringLiteral("/api/devices"), [this](const QByteArray& body) {
+        const auto doc = QJsonDocument::fromJson(body);
+        if (!doc.isArray()) {
+            Q_EMIT requestFailed(QStringLiteral("Invalid devices payload"));
+            return;
+        }
+        for (const auto& v : doc.array()) {
+            const auto o = v.toObject();
+            Q_EMIT deviceMetaReceived(o.value(QStringLiteral("id")).toString(),
+                                      o.value(QStringLiteral("plant")).toString(),
+                                      o.value(QStringLiteral("floor")).toString());
         }
     });
 }

@@ -39,6 +39,8 @@ class FakeHttpServer : public QObject {
                     } else if (req.contains("GET /api/history/")) {
                         last_history_request_ = req;
                         body = history_body_;
+                    } else if (req.contains("GET /api/devices")) {
+                        body = devices_body_;
                     }
 
                     const QByteArray resp = "HTTP/1.1 " + QByteArray::number(status) +
@@ -66,6 +68,8 @@ class FakeHttpServer : public QObject {
     QByteArray history_body_ =
         R"([{"device_id":"pump-001","sensor":"temperature","value":65.0,"unit":"C","timestamp":"2026-07-30T09:00:00Z","anomaly":false},)"
         R"({"device_id":"pump-001","sensor":"temperature","value":97.0,"unit":"C","timestamp":"2026-07-30T09:01:00Z","anomaly":true}])";
+    QByteArray devices_body_ =
+        R"([{"id":"pump-001","name":"pump-001","sensor":"temperature","last_reading_time":"2026-07-30T10:00:00Z","last_value":72.5,"last_unit":"C","anomaly":false,"plant":"Plant A","floor":"Floor 1"}])";
     int ack_status_ = 200;
     QByteArray last_request_;
     QByteArray last_history_request_;
@@ -134,6 +138,20 @@ TEST_F(ApiClientTest, FetchHistoryEmitsPointsThenFinished) {
     EXPECT_TRUE(finishedSpy[0][0].toBool());
     EXPECT_TRUE(server.last_history_request_.contains(
         "GET /api/history/pump-001/temperature?since=2026-07-30T00:00:00Z"));
+}
+
+TEST_F(ApiClientTest, FetchDevicesEmitsDeviceMeta) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+
+    QSignalSpy spy(&client, &ui::ApiClient::deviceMetaReceived);
+    client.fetchDevices();
+    ASSERT_TRUE(spy.wait(2000));
+    ASSERT_EQ(spy.size(), 1);
+    EXPECT_EQ(spy[0][0].toString(), "pump-001");
+    EXPECT_EQ(spy[0][1].toString(), "Plant A");
+    EXPECT_EQ(spy[0][2].toString(), "Floor 1");
 }
 
 TEST_F(ApiClientTest, AcknowledgeAlarmPostsAndEmitsSuccess) {
