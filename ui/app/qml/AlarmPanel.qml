@@ -7,6 +7,21 @@ Rectangle {
     color: Theme.bgPanel
 
     property string filterSeverity: "all"
+    // Alarm ids acknowledged while offline and queued for sync — tracked
+    // locally so the row can show "Queued" instead of "Acknowledge" until
+    // the flush completes and alarmModel reports it as truly acknowledged.
+    property var queuedAckIds: ({})
+
+    Connections {
+        target: alarmModel
+        function onAlarmAcknowledged(alarm_id) {
+            if (alarm_id in queuedAckIds) {
+                var updated = Object.assign({}, queuedAckIds)
+                delete updated[alarm_id]
+                queuedAckIds = updated
+            }
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -310,12 +325,15 @@ Rectangle {
                     }
 
                     Rectangle {
+                        id: ackButton
                         Layout.preferredWidth: 110
                         height: 30
                         radius: Theme.radiusMd
+                        property bool queued: model.id in queuedAckIds
                         visible: !acknowledged
-                        color: ackMouse.containsMouse ? Theme.success : Theme.successBg
-                        border.color: Theme.success
+                        color: queued ? Theme.bgElevated
+                               : (ackMouse.containsMouse ? Theme.success : Theme.successBg)
+                        border.color: queued ? Theme.border : Theme.success
                         border.width: 1
                         Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 
@@ -323,25 +341,40 @@ Rectangle {
                             anchors.centerIn: parent
                             spacing: 5
                             Icon {
-                                name: "check"
+                                name: ackButton.queued ? "clock" : "check"
                                 width: 11; height: 11
-                                color: ackMouse.containsMouse ? Theme.textInverse : Theme.success
+                                color: ackButton.queued ? Theme.textMuted
+                                       : (ackMouse.containsMouse ? Theme.textInverse : Theme.success)
                             }
                             Label {
-                                text: "Acknowledge"
+                                text: ackButton.queued ? "Queued" : "Acknowledge"
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontXs
                                 font.bold: true
-                                color: ackMouse.containsMouse ? Theme.textInverse : Theme.success
+                                color: ackButton.queued ? Theme.textMuted
+                                       : (ackMouse.containsMouse ? Theme.textInverse : Theme.success)
                             }
                         }
 
                         MouseArea {
                             id: ackMouse
                             anchors.fill: parent
-                            hoverEnabled: true
+                            hoverEnabled: !ackButton.queued
+                            enabled: !ackButton.queued
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: apiClient.acknowledgeAlarm(model.id)
+                            onClicked: {
+                                // While offline, queue the ack locally instead of
+                                // firing a request that would just fail — it gets
+                                // flushed automatically once the WS reconnects.
+                                if (wsClient.connected) {
+                                    apiClient.acknowledgeAlarm(model.id)
+                                } else {
+                                    offlineCache.queueAck(model.id)
+                                    var updated = Object.assign({}, queuedAckIds)
+                                    updated[model.id] = true
+                                    queuedAckIds = updated
+                                }
+                            }
                         }
                     }
 
