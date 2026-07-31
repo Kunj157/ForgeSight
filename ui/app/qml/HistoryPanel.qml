@@ -58,13 +58,11 @@ Rectangle {
         spacing: Theme.spaceLg
 
         // Query toolbar
-        Rectangle {
+        ShadowCard {
             Layout.fillWidth: true
-            height: 52
-            radius: Theme.radiusLg
-            color: Theme.bgCard
-            border.color: Theme.border
-            border.width: 1
+            height: 56
+            shadowBlur: 12
+            shadowOffsetY: 3
 
             RowLayout {
                 anchors.fill: parent
@@ -74,6 +72,7 @@ Rectangle {
 
                 Label {
                     text: "Device"
+                    font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontXs
                     color: Theme.textMuted
                 }
@@ -85,6 +84,7 @@ Rectangle {
                     contentItem: Label {
                         text: parent.currentText
                         color: Theme.textPrimary
+                        font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSm
                         leftPadding: 8
                         verticalAlignment: Text.AlignVCenter
@@ -95,18 +95,19 @@ Rectangle {
                         border.color: Theme.border
                         border.width: 1
                     }
-                    indicator: Label {
+                    indicator: Icon {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        anchors.rightMargin: 8
-                        text: "v"
+                        anchors.rightMargin: 10
+                        width: 10; height: 10
+                        name: "chevron-down"
                         color: Theme.textMuted
-                        font.pixelSize: Theme.fontXs
                     }
                 }
 
                 Label {
                     text: "Sensor"
+                    font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontXs
                     color: Theme.textMuted
                 }
@@ -124,6 +125,7 @@ Rectangle {
                     contentItem: Label {
                         text: parent.currentText
                         color: Theme.textPrimary
+                        font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSm
                         leftPadding: 8
                         verticalAlignment: Text.AlignVCenter
@@ -134,13 +136,13 @@ Rectangle {
                         border.color: Theme.border
                         border.width: 1
                     }
-                    indicator: Label {
+                    indicator: Icon {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        anchors.rightMargin: 8
-                        text: "v"
+                        anchors.rightMargin: 10
+                        width: 10; height: 10
+                        name: "chevron-down"
                         color: Theme.textMuted
-                        font.pixelSize: Theme.fontXs
                     }
                 }
 
@@ -157,25 +159,29 @@ Rectangle {
                         { label: "7D", hours: 168 },
                     ]
                     delegate: Rectangle {
-                        height: 28
-                        width: rangeLbl.implicitWidth + 16
+                        height: 30
+                        width: rangeLbl.implicitWidth + 18
                         radius: Theme.radiusMd
-                        color: selectedRangeHours === modelData.hours
-                               ? Theme.accentSoft : "transparent"
-                        border.color: selectedRangeHours === modelData.hours
-                                      ? Theme.accent : Theme.border
+                        property bool sel: selectedRangeHours === modelData.hours
+                        color: sel ? Theme.accentSoft
+                               : (rangeMouse.containsMouse ? Theme.bgCardHover : "transparent")
+                        border.color: sel ? Theme.accent : Theme.border
                         border.width: 1
+                        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
                         Label {
                             id: rangeLbl
                             anchors.centerIn: parent
                             text: modelData.label
+                            font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontXs
                             font.bold: selectedRangeHours === modelData.hours
                             color: selectedRangeHours === modelData.hours
                                    ? Theme.accent : Theme.textSecondary
                         }
                         MouseArea {
+                            id: rangeMouse
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 selectedRangeHours = modelData.hours
@@ -189,7 +195,7 @@ Rectangle {
                 }
 
                 Rectangle {
-                    height: 28
+                    height: 30
                     Layout.preferredWidth: 170
                     radius: Theme.radiusMd
                     color: Theme.bgInput
@@ -205,6 +211,7 @@ Rectangle {
                             return d.toISOString()
                         }
                         color: Theme.textPrimary
+                        font.family: Theme.fontFamilyMono
                         font.pixelSize: Theme.fontXs
                         clip: true
                         selectByMouse: true
@@ -214,20 +221,24 @@ Rectangle {
                 Item { Layout.fillWidth: true }
 
                 Rectangle {
-                    height: 30
-                    width: loadLbl.implicitWidth + 28
+                    height: 32
+                    width: loadLbl.implicitWidth + 30
                     radius: Theme.radiusMd
-                    color: loading ? Theme.bgElevated : Theme.accent
+                    color: loading ? Theme.bgElevated : (loadMouse.containsMouse ? Theme.accent2 : Theme.accent)
+                    Behavior on color { ColorAnimation { duration: Theme.motionFast } }
                     Label {
                         id: loadLbl
                         anchors.centerIn: parent
                         text: loading ? "Loading…" : "Load"
+                        font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSm
                         font.bold: true
                         color: loading ? Theme.textMuted : "#ffffff"
                     }
                     MouseArea {
+                        id: loadMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         enabled: !loading
                         onClicked: loadHistory()
@@ -237,14 +248,11 @@ Rectangle {
         }
 
         // Chart panel
-        Rectangle {
+        ShadowCard {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            radius: Theme.radiusLg
-            color: Theme.bgCard
-            border.color: Theme.border
-            border.width: 1
-            clip: true
+            shadowBlur: 20
+            shadowOffsetY: 6
 
             ChartView {
                 id: chartView
@@ -306,6 +314,7 @@ Rectangle {
                 anchors.bottom: parent.bottom
                 anchors.margins: Theme.spaceMd
                 text: "Scroll to zoom"
+                font.family: Theme.fontFamily
                 font.pixelSize: 10
                 color: Theme.textMuted
                 opacity: 0.7
@@ -323,12 +332,23 @@ Rectangle {
             }
 
             // Empty chart hint
-            Label {
+            ColumnLayout {
                 anchors.centerIn: parent
                 visible: historyModel.pointCount === 0 && !loading
-                text: "Select a device and range, then Load"
-                font.pixelSize: Theme.fontMd
-                color: Theme.textMuted
+                spacing: Theme.spaceSm
+                Icon {
+                    Layout.alignment: Qt.AlignHCenter
+                    name: "chart"
+                    width: 26; height: 26
+                    color: Theme.textMuted
+                }
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Select a device and range, then Load"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontMd
+                    color: Theme.textMuted
+                }
             }
         }
 
@@ -338,22 +358,30 @@ Rectangle {
             spacing: Theme.spaceSm
 
             Rectangle {
-                height: 32
-                width: csvLbl.implicitWidth + 24
+                height: 34
+                width: csvRow.implicitWidth + 26
                 radius: Theme.radiusMd
-                color: Theme.bgCard
+                color: csvMouse.containsMouse ? Theme.bgCardHover : Theme.bgCard
                 border.color: Theme.border
                 border.width: 1
-                Label {
-                    id: csvLbl
+                Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+                RowLayout {
+                    id: csvRow
                     anchors.centerIn: parent
-                    text: "Export CSV"
-                    font.pixelSize: Theme.fontXs
-                    font.bold: true
-                    color: Theme.textSecondary
+                    spacing: 6
+                    Icon { name: "download"; width: 12; height: 12; color: Theme.textSecondary }
+                    Label {
+                        text: "Export CSV"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontXs
+                        font.bold: true
+                        color: Theme.textSecondary
+                    }
                 }
                 MouseArea {
+                    id: csvMouse
                     anchors.fill: parent
+                    hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         var path = historyModel.default_export_path("history_export.csv")
@@ -366,22 +394,30 @@ Rectangle {
             }
 
             Rectangle {
-                height: 32
-                width: pdfLbl.implicitWidth + 24
+                height: 34
+                width: pdfRow.implicitWidth + 26
                 radius: Theme.radiusMd
-                color: Theme.bgCard
+                color: pdfMouse.containsMouse ? Theme.bgCardHover : Theme.bgCard
                 border.color: Theme.border
                 border.width: 1
-                Label {
-                    id: pdfLbl
+                Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+                RowLayout {
+                    id: pdfRow
                     anchors.centerIn: parent
-                    text: "Export PDF"
-                    font.pixelSize: Theme.fontXs
-                    font.bold: true
-                    color: Theme.textSecondary
+                    spacing: 6
+                    Icon { name: "download"; width: 12; height: 12; color: Theme.textSecondary }
+                    Label {
+                        text: "Export PDF"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontXs
+                        font.bold: true
+                        color: Theme.textSecondary
+                    }
                 }
                 MouseArea {
+                    id: pdfMouse
                     anchors.fill: parent
+                    hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         var path = historyModel.default_export_path("history_export.pdf")
@@ -394,21 +430,29 @@ Rectangle {
             }
 
             Rectangle {
-                height: 32
-                width: clearBtn.implicitWidth + 24
+                height: 34
+                width: clearRow.implicitWidth + 26
                 radius: Theme.radiusMd
-                color: "transparent"
+                color: clearAllMouse.containsMouse ? Theme.bgCardHover : "transparent"
                 border.color: Theme.border
                 border.width: 1
-                Label {
-                    id: clearBtn
+                Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+                RowLayout {
+                    id: clearRow
                     anchors.centerIn: parent
-                    text: "Clear"
-                    font.pixelSize: Theme.fontXs
-                    color: Theme.textSecondary
+                    spacing: 6
+                    Icon { name: "trash"; width: 12; height: 12; color: Theme.textSecondary }
+                    Label {
+                        text: "Clear"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontXs
+                        color: Theme.textSecondary
+                    }
                 }
                 MouseArea {
+                    id: clearAllMouse
                     anchors.fill: parent
+                    hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         historyModel.clear()
@@ -423,12 +467,14 @@ Rectangle {
 
             Label {
                 id: statusText
+                font.family: Theme.fontFamily
                 color: Theme.textMuted
                 font.pixelSize: Theme.fontXs
             }
 
             Label {
                 text: historyModel.pointCount + " points"
+                font.family: Theme.fontFamilyMono
                 color: Theme.textMuted
                 font.pixelSize: Theme.fontXs
             }
