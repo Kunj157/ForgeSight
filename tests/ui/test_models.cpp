@@ -101,6 +101,96 @@ TEST_F(DeviceModelTest, DeviceStatusMethod) {
     EXPECT_EQ(model.device_status("nonexistent"), "");
 }
 
+// ---- DeviceModel plant/floor hierarchy ----
+
+TEST_F(DeviceModelTest, DeviceDefaultsToUnassignedPlantAndFloor) {
+    ui::DeviceModel model;
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    auto idx = model.index(0);
+    EXPECT_EQ(model.data(idx, ui::DeviceModel::PlantRole).toString(), "Unassigned");
+    EXPECT_EQ(model.data(idx, ui::DeviceModel::FloorRole).toString(), "Unassigned");
+}
+
+TEST_F(DeviceModelTest, UpdateDeviceMetaBeforeReadingIsApplied) {
+    ui::DeviceModel model;
+    model.updateDeviceMeta("pump-001", "Plant A", "Floor 1");
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    auto idx = model.index(0);
+    EXPECT_EQ(model.data(idx, ui::DeviceModel::PlantRole).toString(), "Plant A");
+    EXPECT_EQ(model.data(idx, ui::DeviceModel::FloorRole).toString(), "Floor 1");
+}
+
+TEST_F(DeviceModelTest, UpdateDeviceMetaAfterReadingUpdatesRetroactively) {
+    ui::DeviceModel model;
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    model.updateDevice("pump-001", "pressure", 2.5, "bar", "2026-07-26T10:00:00Z", false);
+    model.updateDeviceMeta("pump-001", "Plant A", "Floor 1");
+
+    for (int i = 0; i < model.rowCount(); ++i) {
+        auto idx = model.index(i);
+        EXPECT_EQ(model.data(idx, ui::DeviceModel::PlantRole).toString(), "Plant A");
+        EXPECT_EQ(model.data(idx, ui::DeviceModel::FloorRole).toString(), "Floor 1");
+    }
+}
+
+TEST_F(DeviceModelTest, UpdateDeviceMetaEmitsDataChangedForExistingRows) {
+    ui::DeviceModel model;
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    QSignalSpy spy(&model, &QAbstractItemModel::dataChanged);
+    model.updateDeviceMeta("pump-001", "Plant A", "Floor 1");
+    EXPECT_EQ(spy.count(), 1);
+}
+
+TEST_F(DeviceModelTest, PlantsReturnsSortedUniquePlants) {
+    ui::DeviceModel model;
+    model.updateDeviceMeta("compressor-001", "Plant B", "Floor 1");
+    model.updateDeviceMeta("pump-001", "Plant A", "Floor 1");
+    model.updateDeviceMeta("pump-002", "Plant A", "Floor 2");
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    model.updateDevice("pump-002", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    model.updateDevice("compressor-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+
+    auto plants = model.plants();
+    ASSERT_EQ(plants.size(), 2);
+    EXPECT_EQ(plants[0], "Plant A");
+    EXPECT_EQ(plants[1], "Plant B");
+}
+
+TEST_F(DeviceModelTest, FloorsReturnsSortedUniqueFloorsWithinPlant) {
+    ui::DeviceModel model;
+    model.updateDeviceMeta("pump-001", "Plant A", "Floor 2");
+    model.updateDeviceMeta("pump-002", "Plant A", "Floor 1");
+    model.updateDeviceMeta("compressor-001", "Plant B", "Floor 9");
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    model.updateDevice("pump-002", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    model.updateDevice("compressor-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+
+    auto floors = model.floors("Plant A");
+    ASSERT_EQ(floors.size(), 2);
+    EXPECT_EQ(floors[0], "Floor 1");
+    EXPECT_EQ(floors[1], "Floor 2");
+}
+
+TEST_F(DeviceModelTest, DevicesForReturnsOnlyMatchingPlantAndFloor) {
+    ui::DeviceModel model;
+    model.updateDeviceMeta("pump-001", "Plant A", "Floor 1");
+    model.updateDeviceMeta("compressor-001", "Plant B", "Floor 1");
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    model.updateDevice("compressor-001", "temperature", 72.0, "°C", "2026-07-26T10:00:00Z", false);
+
+    auto rows = model.devicesFor("Plant A", "Floor 1");
+    ASSERT_EQ(rows.size(), 1);
+    auto row = rows[0].toMap();
+    EXPECT_EQ(row["deviceId"].toString(), "pump-001");
+    EXPECT_DOUBLE_EQ(row["value"].toDouble(), 65.0);
+}
+
+TEST_F(DeviceModelTest, DevicesForReturnsEmptyForUnknownGroup) {
+    ui::DeviceModel model;
+    model.updateDevice("pump-001", "temperature", 65.0, "°C", "2026-07-26T10:00:00Z", false);
+    EXPECT_TRUE(model.devicesFor("Nowhere", "Nothing").empty());
+}
+
 // ---- AlarmModel Tests ----
 
 class AlarmModelTest : public ::testing::Test {
