@@ -54,6 +54,9 @@ void DeviceModel::updateDevice(const QString& device_id, const QString& sensor, 
     int row = find_device(device_id, sensor);
     QString status = compute_status(anomaly, value);
 
+    QString plant;
+    QString floor;
+
     if (row >= 0) {
         auto& d = devices_[row];
         d.value = value;
@@ -61,6 +64,8 @@ void DeviceModel::updateDevice(const QString& device_id, const QString& sensor, 
         d.timestamp = timestamp;
         d.anomaly = anomaly;
         d.status = status;
+        plant = d.plant;
+        floor = d.floor;
         auto idx = index(row);
         Q_EMIT dataChanged(idx, idx);
     } else {
@@ -78,11 +83,15 @@ void DeviceModel::updateDevice(const QString& device_id, const QString& sensor, 
             state.plant = it->first;
             state.floor = it->second;
         }
+        plant = state.plant;
+        floor = state.floor;
         beginInsertRows(QModelIndex(), devices_.size(), devices_.size());
         devices_.append(std::move(state));
         endInsertRows();
         Q_EMIT countChanged();
     }
+
+    Q_EMIT deviceUpdated(device_id, sensor, value, unit, timestamp, anomaly, plant, floor);
 }
 
 void DeviceModel::updateDeviceMeta(const QString& device_id, const QString& plant,
