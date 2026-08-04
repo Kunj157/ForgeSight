@@ -43,6 +43,43 @@ Stop services:
 ./scripts/dev-up.sh stop
 ```
 
+## Run the backend via Docker Compose
+
+An alternative to the native setup above: Postgres, Mosquitto, ingestion, alarm-engine, and the API all run in containers, so you don't need PostgreSQL/Mosquitto/Qt installed on the host at all. Only Docker is required.
+
+```bash
+docker compose up --build
+```
+
+This brings up:
+
+| Service | Purpose | Exposed on host |
+|---|---|---|
+| `postgres` | Database (`forgesight`) | `5432` |
+| `mosquitto` | MQTT broker | `1883` |
+| `ingestion` | MQTT → Postgres | — |
+| `alarm-engine` | Rule evaluation (seeds default rules on first start) | — |
+| `api` | REST + WebSocket | `8080`, `8081` |
+
+The Qt desktop app and the Python simulators are **not** containerized — the desktop app isn't a service, and you'll usually want to run the simulators natively so you can iterate on `simulators/config.yaml` without rebuilding an image. Point them at the compose-exposed MQTT port (the default `localhost:1883` already matches):
+
+```bash
+pip3 install --user paho-mqtt PyYAML
+PYTHONPATH=. python3 -m simulators.run -c simulators/config.yaml
+```
+
+Then launch the dashboard the same way as the native setup:
+
+```bash
+./build/ui/app/factory-pulse
+```
+
+Stop the stack (add `-v` to also drop the Postgres volume and start from an empty DB next time):
+
+```bash
+docker compose down
+```
+
 ## Architecture (MVP)
 
 ```

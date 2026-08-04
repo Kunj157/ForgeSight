@@ -1,0 +1,17 @@
+.git/
+build/
+build-*/
+Testing/
+.cache/
+.pytest_cache/
+**/__pycache__/
+*.pyc
+*.log
+
+# Not needed by the backend build (Qt desktop app + its tests)
+ui/
+tests/ui/
+
+# Local-only docs
+AGENTS.md
+implementation-plan.md
