@@ -1,12 +1,20 @@
 # Dockerized backend stack: Postgres, Mosquitto, ingestion, alarm-engine, api.
 #
+# ingestion/alarm-engine/api all run the *same* forgesight-backend:local
+# image (built once, from docker/Dockerfile.backend) with a different
+# `entrypoint:` per service — only `ingestion` declares `build:`, so there is
+# exactly one image build no matter how compose is invoked (see #28 for why
+# that matters: three separate per-service targets sharing a build stage let
+# a parallel `docker compose build` triple the heaviest step and once froze
+# a real dev machine).
+#
 # The Qt desktop app and the Python simulators are intentionally left out —
 # the desktop app isn't a service, and the simulators are dev tooling you'll
 # usually want to run natively (against the MQTT port exposed below) so you
 # can edit simulators/config.yaml without rebuilding an image.
 #
 # Usage:
-#   docker compose up --build        # build + start Postgres, Mosquitto, ingestion, alarm-engine, api
+#   docker compose up --build        # build once + start Postgres, Mosquitto, ingestion, alarm-engine, api
 #   PYTHONPATH=. python3 -m simulators.run -c simulators/config.yaml   # feed it data
 #   docker compose down               # stop (add -v to also drop the Postgres volume)
 
@@ -35,10 +43,11 @@ services:
       - ./simulators/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
   ingestion:
+    image: forgesight-backend:local
     build:
       context: .
       dockerfile: docker/Dockerfile.backend
-      target: ingestion
+    entrypoint: ["/usr/local/bin/ingestion"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,10 +61,8 @@ services:
     restart: unless-stopped
 
   alarm-engine:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.backend
-      target: alarm-engine
+    image: forgesight-backend:local
+    entrypoint: ["/usr/local/bin/alarm-engine"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,10 +73,8 @@ services:
     restart: unless-stopped
 
   api:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.backend
-      target: api
+    image: forgesight-backend:local
+    entrypoint: ["/usr/local/bin/api"]
     depends_on:
       postgres:
         condition: service_healthy
