@@ -1,9 +1,9 @@
 # ForgeSight — Production Roadmap & Session Handoff
 
-**Last updated:** 2026-08-04 (Phase 8 item 14 **done**: PR #27 merged)  
+**Last updated:** 2026-08-04 (Phase 8 item 14 **done**: PR #27 merged, crash fix PR #29 merged)  
 **Branch:** `dev`  
-**Open PRs:** none — #13, #15, #17, #20, #21, #24, #27 all **MERGED** into `dev`  
-**Open issues:** none from this roadmap's P0/P1/P2 list (#10 docs-sync issue still open, tracks this file itself)  
+**Open PRs:** none — #13, #15, #17, #20, #21, #24, #27, #29 all **MERGED** into `dev`  
+**Open issues:** none from this roadmap's P0/P1/P2 list (#10 docs-sync issue still open, tracks this file itself; #28 closed by #29)  
 
 Use this file as the source of truth for “what’s done / what’s next” in a new chat session.
 
@@ -15,9 +15,9 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 |------|--------|
 | Local live demo (sim → MQTT → ingest → DB → API/WS → UI) | **Working** via `scripts/dev-up.sh` |
 | Phases 0–7 (MVP core + offline mode) | **Done** — offline mode (Phase 7) closed 2026-07-31 |
-| Phase 8 (packaging, load) | **Started** — Docker/compose for backend services done (PR #27); load script, ASan CI, AppImage still open |
+| Phase 8 (packaging, load) | **Started** — Docker/compose for backend services done (PR #27, crash fix PR #29); load script, ASan CI, AppImage still open |
 | Phase 9 (release) | **Not started** |
-| CI / `dev` | Green — PRs #13, #15, #17, #20, #21, #24, #27 merged |
+| CI / `dev` | Green — PRs #13, #15, #17, #20, #21, #24, #27, #29 merged |
 | Production-grade | **Not yet** — P1+P2 fully done; Phase 8 in progress (item 14/4 done) |
 
 **How to run today**
@@ -122,7 +122,7 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ### P3 — Phase 8 Packaging & load
 
-14. Dockerfiles + compose for Postgres, Mosquitto, ingestion, api, alarm-engine. ✅ (PR [#27](https://github.com/Kunj157/ForgeSight/pull/27), issue #26) — `docker/Dockerfile.backend` multi-stage build shared across the 3 C++ services; `docker-compose.yml` wires them to Postgres/Mosquitto; new `docker` CI job builds the images on every PR.
+14. Dockerfiles + compose for Postgres, Mosquitto, ingestion, api, alarm-engine. ✅ (PR [#27](https://github.com/Kunj157/ForgeSight/pull/27), issue #26; hardened by PR [#29](https://github.com/Kunj157/ForgeSight/pull/29), issue #28) — `docker/Dockerfile.backend` builds one shared image for all 3 C++ services (originally 3 per-service targets, collapsed to 1 after #28); `docker-compose.yml` wires it + Postgres/Mosquitto together; `docker` CI job builds the image on every PR.
 15. Load script: scale simulator device count; record **measured** latency/CPU in README.  
 16. ASan (and optional Valgrind) CI job; zero-leak goal.  
 17. Package Qt app (AppImage or similar).
@@ -231,3 +231,9 @@ When all boxes above are checked, stretch phases may begin.
   - Net effect: the `docker` CI job now takes ~24 minutes (dominated by the one-time `qt6-base-dev` apt-get, which pulls a surprisingly large X11/Mesa/Vulkan dependency tree even though none of these 3 services touch a GUI) — acceptable for now since it only gates PRs that touch Docker/compose, not every commit.
   - Per explicit user instruction this session, no `docker build`/`docker compose` command was ever run locally — all three bugs above were found and fixed purely by reading the CI job's failure logs after each push, not by local reproduction.
   - Next real gap in Phase 8: items 15-17 — a load script with measured latency/CPU numbers, an ASan (+ optional Valgrind) CI job, and packaging the Qt app (AppImage or similar). Any order is fine, they're independent of each other and of item 14.
+- **2026-08-04 (later):** PR #27's compose design turned out to have a real teeth: the user tried `docker compose up --build` (the plain command, without the `COMPOSE_BAKE=false`/`COMPOSE_PARALLEL_LIMIT=1` env vars #27 had documented but couldn't enforce) and it **froze their dev machine hard enough to need a power cycle** — confirmed post-reboot by an "uncleanly shut down" systemd-journald message, not just a slow build. #28 → PR #29, closed same session:
+  - Root cause: 3 separate final Docker stages (one per service) sharing a `builder` stage, selected via `--target`, is exactly the shape that trips [docker/compose#13043](https://github.com/docker/compose/issues/13043) — parallel bake doesn't dedupe a shared stage across targets, so it raced 3 concurrent copies of the ~200-package `qt6-base-dev` apt-get against the same mirrors/disk. Enough concurrent I/O + memory pressure to thrash a resource-constrained laptop into unresponsiveness.
+  - Fix: collapsed to **one** image. Only the `ingestion` service declares `build:` in `docker-compose.yml` now; `alarm-engine`/`api` reference the exact same `forgesight-backend:local` tag via `image:` and just override `entrypoint:`. There's structurally nothing left for a parallel builder to race, regardless of `COMPOSE_BAKE`/env vars — the fix removes the footgun instead of relying on a user remembering a workaround. Also capped the builder's `cmake --build --parallel` at a fixed `2` (was `$(nproc)`) as a second line of defense against compile-time memory pressure — cheap to do since the actual compile is only ~40s per CI's own timing breakdown, apt-get is the entire cost.
+  - Per explicit instruction, no `docker` command was run locally at any point investigating or fixing either #28 or the original #27 CI failures — every round of debugging (missing `make`, missing `git`, the parallel-bake race, and this crash) was diagnosed purely by reading CI job logs after pushing, plus `dmesg`/`journalctl` for the crash evidence itself. The `docker` CI job (GitHub-hosted runner, not the user's machine) remains the only thing that has ever actually executed `docker build`/`docker compose build` for this project.
+  - Minor self-inflicted blemish: one commit message on the `feature/28-single-docker-image` branch got mangled — used unquoted backticks (and one `$(nproc)`) inside a double-quoted `MSG="..."` shell variable instead of a `<<'EOF'` heredoc, so bash ran them as command substitution before `git commit-tree` ever saw the text. Left as-is per the "don't amend already-pushed commits without being asked" rule; the PR description has the accurate, complete writeup. **Lesson: always use a quoted heredoc (`<<'EOF'`) for commit messages that contain backticks, never a plain double-quoted variable.**
+  - Phase 8 item 14 is now genuinely done (previously "done" but with a live footgun in it). Still open: items 15-17 (load script, ASan CI, AppImage packaging).
