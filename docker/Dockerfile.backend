@@ -16,7 +16,7 @@
 FROM ubuntu:24.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        cmake g++ pkg-config ca-certificates \
+        cmake make g++ pkg-config ca-certificates \
         nlohmann-json3-dev libspdlog-dev libpq-dev \
         libpaho-mqtt-dev libpaho-mqttpp-dev \
         qt6-base-dev qt6-httpserver-dev qt6-websockets-dev \
