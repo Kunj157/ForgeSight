@@ -1,8 +1,8 @@
 # ForgeSight — Production Roadmap & Session Handoff
 
-**Last updated:** 2026-07-31 (Phase 7 **done**: PR #24 merged)  
+**Last updated:** 2026-08-04 (Phase 8 item 14 **done**: PR #27 merged)  
 **Branch:** `dev`  
-**Open PRs:** none — #13, #15, #17, #20, #21, #24 all **MERGED** into `dev`  
+**Open PRs:** none — #13, #15, #17, #20, #21, #24, #27 all **MERGED** into `dev`  
 **Open issues:** none from this roadmap's P0/P1/P2 list (#10 docs-sync issue still open, tracks this file itself)  
 
 Use this file as the source of truth for “what’s done / what’s next” in a new chat session.
@@ -15,9 +15,10 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 |------|--------|
 | Local live demo (sim → MQTT → ingest → DB → API/WS → UI) | **Working** via `scripts/dev-up.sh` |
 | Phases 0–7 (MVP core + offline mode) | **Done** — offline mode (Phase 7) closed 2026-07-31 |
-| Phases 8–9 (packaging, release) | **Not started** |
-| CI / `dev` | Green — PRs #13, #15, #17, #20, #21, #24 merged |
-| Production-grade | **Not yet** — P1+P2 fully done; next is Phase 8 (packaging + load test) |
+| Phase 8 (packaging, load) | **Started** — Docker/compose for backend services done (PR #27); load script, ASan CI, AppImage still open |
+| Phase 9 (release) | **Not started** |
+| CI / `dev` | Green — PRs #13, #15, #17, #20, #21, #24, #27 merged |
+| Production-grade | **Not yet** — P1+P2 fully done; Phase 8 in progress (item 14/4 done) |
 
 **How to run today**
 
@@ -43,7 +44,7 @@ Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`.
 | **5** | Dashboard core | Done | Plant→floor→device tree in `DeviceTreePanel.qml`, closed #5 via PR #21 (2026-07-31) |
 | **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; weak pan still open (nice-to-have) |
 | **7** | Offline mode | Done | `OfflineCache` (SQLite) restores last-known state on cold start, persists every reading live, queues acks while offline and flushes on reconnect; staleness-aware offline indicator. Closed #23 via PR #24 (2026-07-31) |
-| **8** | Load test + packaging | **Missing** | No Docker for services, no AppImage, no measured load numbers |
+| **8** | Load test + packaging | Partial | Docker/compose for backend services done (PR #27); no AppImage, no measured load numbers, no ASan CI job |
 | **9** | First release | **Missing** | `main` empty; no `release.yml` / `deploy.yml` |
 
 Stretch (Kafka, gRPC, camera, Prometheus, plugins): **do not start** until Phases 7–9 close.
@@ -121,7 +122,7 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ### P3 — Phase 8 Packaging & load
 
-14. Dockerfiles + compose for Postgres, Mosquitto, ingestion, api, alarm-engine.  
+14. Dockerfiles + compose for Postgres, Mosquitto, ingestion, api, alarm-engine. ✅ (PR [#27](https://github.com/Kunj157/ForgeSight/pull/27), issue #26) — `docker/Dockerfile.backend` multi-stage build shared across the 3 C++ services; `docker-compose.yml` wires them to Postgres/Mosquitto; new `docker` CI job builds the images on every PR.
 15. Load script: scale simulator device count; record **measured** latency/CPU in README.  
 16. ASan (and optional Valgrind) CI job; zero-leak goal.  
 17. Package Qt app (AppImage or similar).
@@ -145,10 +146,11 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ```text
 1. Read this file + implementation-plan.md
-2. P1+P2 are fully done — start Phase 8 packaging & load (P3, items 14-17):
-   Dockerfiles/compose for Postgres/Mosquitto/ingestion/api/alarm-engine,
-   a load script with measured latency/CPU numbers, an ASan CI job, and
-   packaging the Qt app (AppImage or similar). This is the next real gap.
+2. Phase 8 item 14 (Docker/compose) is done — continue P3, items 15-17:
+   a load script that scales simulator device count with measured
+   latency/CPU numbers written into the README, an ASan (+ optional
+   Valgrind) CI job with a zero-leak goal, and packaging the Qt app
+   (AppImage or similar). Any of the three can go first; they're independent.
 3. Branch from dev: feature/<n>-…
 4. TDD strictly (AGENTS.md)
 5. Small sequential commits; PR → dev
@@ -186,7 +188,7 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 - [ ] Live tiles + alarms + history + ack persist across restart  
 - [ ] Rule CRUD via API (and ideally minimal UI)  
 - [x] Offline cache + queued ack flush  
-- [ ] Dockerized backends + documented load numbers  
+- [ ] Dockerized backends (done) + documented load numbers (still open)  
 - [ ] ASan clean in CI  
 - [ ] Tagged `v1.0.0` on `main` with release artifacts  
 
@@ -219,3 +221,13 @@ When all boxes above are checked, stretch phases may begin.
   - Repeated the "co-author trailer" gotcha from earlier sessions once, accidentally, when using plain `git commit` for the first commit — caught it immediately and rewrote it with `git commit-tree` before pushing anything; all 5 commits on `dev` are solely authored.
   - Also hit a self-inflicted near-miss: ran `git checkout <branch> -- .` after an intermediate `git update-ref`-based commit, not realizing `-- .` checks out *every* path from that ref's tree into the working directory, silently discarding the not-yet-committed `main.cpp`/QML changes for the next few commits. Recovered by redoing those edits from scratch (same content, still in this session's context) — no data actually lost, but worth flagging: never use `checkout <ref> -- .` as a "sync HEAD" no-op after `update-ref`: it's a hard reset of *all* tracked paths, not a formality.
   - **P1 + P2 are now fully done.** Next real gap: **Phase 8 (packaging & load test)** — no Dockerfiles/compose for the backend services, no measured load numbers, no ASan CI job, no packaged desktop artifact.
+- **2026-08-04:** Closed Phase 8 item 14 (Docker/compose for backend services) — #26 → PR #27, 4 sequential commits, merged to `dev` with CI green:
+  - `docker/Dockerfile.backend` — one multi-stage build shared by `ingestion`/`alarm-engine`/`api` (all three descend from the same CMake project, so one `builder` stage + per-service slim runtime stages avoids redundant compilation). Deliberately skips `qt6-declarative-dev`/`qt6-charts-dev` so the root `CMakeLists.txt`'s `find_package(Qt6 COMPONENTS Quick WebSockets Charts QUIET)` can't find Quick/Charts and quietly skips `ui/`+`tests/ui` at configure time.
+  - `docker-compose.yml` — wires Postgres, Mosquitto, and the three services together; Qt desktop app and Python simulators intentionally stay outside Docker (not services / dev tooling you iterate on without rebuilding an image).
+  - Added a `docker` CI job (`docker compose build`) so the images are verified to actually build on every PR instead of trusting a local build — this earned its keep immediately: caught 3 real bugs the local review had missed, only visible once something actually tried to build the image:
+    1. **Missing `make`** — installed `cmake`/`g++` but not `make`; CMake's default "Unix Makefiles" generator had no build program (`CMAKE_MAKE_PROGRAM is not set`). Trivial on a native runner (`build-essential` is preinstalled) but not inside a bare `ubuntu:24.04` container.
+    2. **`docker compose build`'s default parallel bake doesn't dedupe a shared stage across targets** ([docker/compose#13043](https://github.com/docker/compose/issues/13043)) — building `ingestion`/`alarm-engine`/`api` concurrently raced 3 independent copies of the same ~200-package `qt6-base-dev` apt-get against the same mirrors, which then started timing out (`Could not connect to archive.ubuntu.com: connection timed out`). Fixed with `COMPOSE_BAKE=false COMPOSE_PARALLEL_LIMIT=1` (both in CI and documented in the README's compose command) — forces one sequential build so the 2nd/3rd service hit the 1st's cached `builder`/`runtime-base` layers on disk instead of re-fetching everything.
+    3. **Missing `git`** — root `CMakeLists.txt` unconditionally configures `tests/unit` (and the other `tests/*` dirs), which `FetchContent`-clones googletest at *configure* time regardless of which target you eventually build. No git binary on the bare base image → `could not find git for clone of googletest-populate`. Again invisible on native CI since the GH runner image ships git.
+  - Net effect: the `docker` CI job now takes ~24 minutes (dominated by the one-time `qt6-base-dev` apt-get, which pulls a surprisingly large X11/Mesa/Vulkan dependency tree even though none of these 3 services touch a GUI) — acceptable for now since it only gates PRs that touch Docker/compose, not every commit.
+  - Per explicit user instruction this session, no `docker build`/`docker compose` command was ever run locally — all three bugs above were found and fixed purely by reading the CI job's failure logs after each push, not by local reproduction.
+  - Next real gap in Phase 8: items 15-17 — a load script with measured latency/CPU numbers, an ASan (+ optional Valgrind) CI job, and packaging the Qt app (AppImage or similar). Any order is fine, they're independent of each other and of item 14.
