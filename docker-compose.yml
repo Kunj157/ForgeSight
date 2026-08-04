@@ -1,0 +1,93 @@
+# Dockerized backend stack: Postgres, Mosquitto, ingestion, alarm-engine, api.
+#
+# The Qt desktop app and the Python simulators are intentionally left out —
+# the desktop app isn't a service, and the simulators are dev tooling you'll
+# usually want to run natively (against the MQTT port exposed below) so you
+# can edit simulators/config.yaml without rebuilding an image.
+#
+# Usage:
+#   docker compose up --build        # build + start Postgres, Mosquitto, ingestion, alarm-engine, api
+#   PYTHONPATH=. python3 -m simulators.run -c simulators/config.yaml   # feed it data
+#   docker compose down               # stop (add -v to also drop the Postgres volume)
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: forgesight
+      POSTGRES_USER: forgesight
+      POSTGRES_PASSWORD: forgesight
+    ports:
+      - "5432:5432"
+    volumes:
+      - forgesight-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forgesight -d forgesight"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./simulators/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  ingestion:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+      target: ingestion
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    command:
+      - --broker
+      - tcp://mosquitto:1883
+      - --db
+      - host=postgres dbname=forgesight user=forgesight password=forgesight
+    restart: unless-stopped
+
+  alarm-engine:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+      target: alarm-engine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - --db
+      - host=postgres dbname=forgesight user=forgesight password=forgesight
+      - --seed
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+      target: api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    command:
+      - --database
+      - host=postgres dbname=forgesight user=forgesight password=forgesight
+      - --mqtt
+      - tcp://mosquitto:1883
+      - --port
+      - "8080"
+      - --ws-port
+      - "8081"
+    restart: unless-stopped
+
+volumes:
+  forgesight-pgdata:

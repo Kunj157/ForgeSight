@@ -1,0 +1,60 @@
+# Multi-stage build for the three ForgeSight backend services (ingestion,
+# alarm-engine, api). One shared builder stage configures/builds the whole
+# CMake project once; each service then gets its own slim runtime image with
+# only the shared libraries it actually links against, selected via
+# `docker build --target <service>` (docker-compose.yml does this per service).
+#
+# Deliberately does NOT install qt6-declarative-dev/qt6-charts-dev here: the
+# root CMakeLists.txt's `find_package(Qt6 COMPONENTS Quick WebSockets Charts
+# QUIET)` then fails to find Quick/Charts, so ui/ and tests/ui are skipped
+# entirely at configure time — the desktop app has no business being built
+# into a backend service image anyway.
+#
+# Build context must be the repo root, e.g.:
+#   docker build -f docker/Dockerfile.backend --target api .
+
+FROM ubuntu:24.04 AS builder
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        cmake make g++ pkg-config ca-certificates git \
+        nlohmann-json3-dev libspdlog-dev libpq-dev \
+        libpaho-mqtt-dev libpaho-mqttpp-dev \
+        qt6-base-dev qt6-httpserver-dev qt6-websockets-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY CMakeLists.txt ./
+COPY ingestion ./ingestion
+COPY alarm-engine ./alarm-engine
+COPY api ./api
+COPY tests ./tests
+
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --parallel "$(nproc)" --target ingestion alarm-engine api
+
+# ---- shared runtime base: libs common to all three services ----
+FROM ubuntu:24.04 AS runtime-base
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq5 libpaho-mqtt1.3 libpaho-mqttpp3-1 libspdlog1.12 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---- ingestion ----
+FROM runtime-base AS ingestion
+COPY --from=builder /src/build/ingestion/ingestion /usr/local/bin/ingestion
+ENTRYPOINT ["/usr/local/bin/ingestion"]
+
+# ---- alarm-engine ----
+FROM runtime-base AS alarm-engine
+COPY --from=builder /src/build/alarm-engine/alarm-engine /usr/local/bin/alarm-engine
+ENTRYPOINT ["/usr/local/bin/alarm-engine"]
+
+# ---- api (needs Qt6 Core/Network/HttpServer/WebSockets on top of runtime-base) ----
+FROM runtime-base AS api
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libqt6core6t64 libqt6network6t64 libqt6httpserver6 libqt6websockets6 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /src/build/api/api /usr/local/bin/api
+EXPOSE 8080 8081
+ENTRYPOINT ["/usr/local/bin/api"]

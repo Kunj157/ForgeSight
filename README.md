@@ -43,6 +43,45 @@ Stop services:
 ./scripts/dev-up.sh stop
 ```
 
+## Run the backend via Docker Compose
+
+An alternative to the native setup above: Postgres, Mosquitto, ingestion, alarm-engine, and the API all run in containers, so you don't need PostgreSQL/Mosquitto/Qt installed on the host at all. Only Docker is required.
+
+```bash
+COMPOSE_BAKE=false COMPOSE_PARALLEL_LIMIT=1 docker compose up --build
+```
+
+`ingestion`, `alarm-engine`, and `api` all build from the same `docker/Dockerfile.backend`, sharing one `builder` stage so the project only gets compiled once. Compose's default parallel build (via buildx bake) doesn't dedupe that shared stage across services though — it just races all 3 through their own independent `apt-get`, tripling network load for zero benefit. The env vars above force a single sequential build so the 2nd/3rd service reuse the 1st's cached `builder` layer.
+
+This brings up:
+
+| Service | Purpose | Exposed on host |
+|---|---|---|
+| `postgres` | Database (`forgesight`) | `5432` |
+| `mosquitto` | MQTT broker | `1883` |
+| `ingestion` | MQTT → Postgres | — |
+| `alarm-engine` | Rule evaluation (seeds default rules on first start) | — |
+| `api` | REST + WebSocket | `8080`, `8081` |
+
+The Qt desktop app and the Python simulators are **not** containerized — the desktop app isn't a service, and you'll usually want to run the simulators natively so you can iterate on `simulators/config.yaml` without rebuilding an image. Point them at the compose-exposed MQTT port (the default `localhost:1883` already matches):
+
+```bash
+pip3 install --user paho-mqtt PyYAML
+PYTHONPATH=. python3 -m simulators.run -c simulators/config.yaml
+```
+
+Then launch the dashboard the same way as the native setup:
+
+```bash
+./build/ui/app/factory-pulse
+```
+
+Stop the stack (add `-v` to also drop the Postgres volume and start from an empty DB next time):
+
+```bash
+docker compose down
+```
+
 ## Architecture (MVP)
 
 ```
