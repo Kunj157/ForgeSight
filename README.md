@@ -48,8 +48,10 @@ Stop services:
 An alternative to the native setup above: Postgres, Mosquitto, ingestion, alarm-engine, and the API all run in containers, so you don't need PostgreSQL/Mosquitto/Qt installed on the host at all. Only Docker is required.
 
 ```bash
-docker compose up --build
+COMPOSE_BAKE=false COMPOSE_PARALLEL_LIMIT=1 docker compose up --build
 ```
+
+`ingestion`, `alarm-engine`, and `api` all build from the same `docker/Dockerfile.backend`, sharing one `builder` stage so the project only gets compiled once. Compose's default parallel build (via buildx bake) doesn't dedupe that shared stage across services though — it just races all 3 through their own independent `apt-get`, tripling network load for zero benefit. The env vars above force a single sequential build so the 2nd/3rd service reuse the 1st's cached `builder` layer.
 
 This brings up:
 

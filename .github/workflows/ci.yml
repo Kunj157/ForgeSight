@@ -79,5 +79,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # COMPOSE_BAKE=false + COMPOSE_PARALLEL_LIMIT=1: without these,
+      # `docker compose build` builds all 3 services in parallel (via
+      # buildx bake, or even the classic builder), and neither path dedupes
+      # the shared `builder` stage across targets — each service racily
+      # re-runs its own apt-get, tripling network load and package-mirror
+      # timeout risk for no benefit (see docker/compose#13043). Forcing a
+      # single sequential build means the 2nd/3rd service hit local layer
+      # cache from the 1st's builder stage instead.
       - name: Build backend images
         run: docker compose build
+        env:
+          COMPOSE_BAKE: "false"
+          COMPOSE_PARALLEL_LIMIT: "1"
