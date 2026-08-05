@@ -119,6 +119,20 @@ Stop the stack (add `-v` to also drop the Postgres volume and start from an empt
 docker compose down
 ```
 
+## Releases
+
+Pushing a `vX.Y.Z` tag triggers `.github/workflows/release.yml`, which:
+
+1. Builds and smoke-tests the AppImage (Release config) and attaches it to a new GitHub Release for that tag.
+2. Builds `docker/Dockerfile.backend` and pushes it to GHCR as `ghcr.io/<owner>/forgesight-backend:vX.Y.Z` and `:latest`.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+To run the published image stack instead of building locally, point `docker-compose.yml`'s `image:`/`build:` at `ghcr.io/<owner>/forgesight-backend:vX.Y.Z` (or `:latest`) and drop the `build:` section.
+
 ## Load testing
 
 `scripts/load_test.py` scales the device simulator up to N synthetic devices against an already-running backend stack (`scripts/dev-up.sh` or Docker Compose) and reports end-to-end ingestion latency (reading generation → `readings` row landing in Postgres, measured entirely via Postgres's own clock to avoid cross-process clock skew) plus CPU usage of `ingestion`/`alarm-engine`/`api` during the run. Synthetic devices use a `load-XXXX` id prefix so a run never collides with the demo devices, and their rows are deleted from the database when the run finishes (`--keep-data` to skip that).

@@ -1,0 +1,117 @@
+name: Release
+
+# Fires on version tags only (v1.0.0, v1.2.3-rc1, ...) — pushing to main/dev
+# never triggers this. Tag first (after dev -> main is merged and green),
+# then this builds/publishes everything the tag represents.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write # create the GitHub Release
+  packages: write # push the backend image to GHCR
+
+jobs:
+  appimage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same package list as the `build` job in ci.yml, kept in sync manually
+      # since GitHub Actions has no shared-step-list primitive across
+      # workflow files without a separate composite action.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake g++ pkg-config \
+            nlohmann-json3-dev libspdlog-dev libpq-dev \
+            libpaho-mqtt-dev libpaho-mqttpp-dev \
+            libqt6sql6-sqlite \
+            qt6-base-dev qt6-declarative-dev qt6-charts-dev \
+            qt6-httpserver-dev qt6-websockets-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtcharts \
+            qml6-module-qtquick-window \
+            qml6-module-qtqml \
+            qml6-module-qtqml-workerscript \
+            xvfb
+
+      - name: Configure (Release)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      # GitHub-hosted runners don't have a working /dev/fuse, so
+      # APPIMAGE_EXTRACT_AND_RUN exercises the script's extract+run fallback.
+      - name: Package AppImage
+        run: ./scripts/package-appimage.sh
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+
+      - name: Smoke-test AppImage
+        run: |
+          Xvfb :99 -screen 0 1280x800x24 &
+          sleep 2
+          DISPLAY=:99 APPIMAGE_EXTRACT_AND_RUN=1 timeout 10 ./dist/ForgeSight-x86_64.AppImage 2>&1 | tee /tmp/appimage.log || true
+          grep -q "window ready" /tmp/appimage.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: dist/ForgeSight-x86_64.AppImage
+          retention-days: 7
+          if-no-files-found: error
+
+  docker-image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Single combined image (ingestion/alarm-engine/api all run this same
+      # image with different entrypoints in docker-compose.yml) — see #28 for
+      # why there's deliberately only one image to build here.
+      - name: Build and tag backend image
+        run: |
+          image="ghcr.io/$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')/forgesight-backend"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+          docker build -f docker/Dockerfile.backend \
+            -t "$image:${{ github.ref_name }}" \
+            -t "$image:latest" .
+
+      - name: Push backend image
+        run: |
+          docker push "$IMAGE:${{ github.ref_name }}"
+          docker push "$IMAGE:latest"
+
+  publish-release:
+    needs: [appimage, docker-image]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: appimage
+          path: dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')/forgesight-backend"
+          gh release create "${{ github.ref_name }}" \
+            "dist/ForgeSight-x86_64.AppImage" \
+            --title "ForgeSight ${{ github.ref_name }}" \
+            --generate-notes \
+            --notes "**Backend Docker image:** \`$image:${{ github.ref_name }}\` (also tagged \`:latest\`) — see [docker-compose.yml](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/docker-compose.yml) for how ingestion/alarm-engine/api all run it.
+          **Desktop app:** \`ForgeSight-x86_64.AppImage\` — self-contained Linux x86_64 build, no Qt install needed. \`chmod +x\` and run.
+          "
