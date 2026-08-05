@@ -82,6 +82,25 @@ Stop the stack (add `-v` to also drop the Postgres volume and start from an empt
 docker compose down
 ```
 
+## Load testing
+
+`scripts/load_test.py` scales the device simulator up to N synthetic devices against an already-running backend stack (`scripts/dev-up.sh` or Docker Compose) and reports end-to-end ingestion latency (reading generation → `readings` row landing in Postgres, measured entirely via Postgres's own clock to avoid cross-process clock skew) plus CPU usage of `ingestion`/`alarm-engine`/`api` during the run. Synthetic devices use a `load-XXXX` id prefix so a run never collides with the demo devices, and their rows are deleted from the database when the run finishes (`--keep-data` to skip that).
+
+```bash
+./scripts/dev-up.sh
+PYTHONPATH=. python3 scripts/load_test.py --devices 100 --duration 30
+```
+
+Measured on a dev laptop (8-core, 15 GB RAM; native build, not Docker) at 1 sensor reading/device/sec:
+
+| Devices | Msg/s | ingestion CPU (avg/peak) | api CPU (avg/peak) | latency p50 | latency p95 | latency max |
+|---:|---:|---|---|---:|---:|---:|
+| 100 | ~300 | 5.5% / 12.0% | 8.9% / 22.0% | 42 ms | 560 ms | 575 ms |
+| 300 | ~900 | 10.8% / 20.0% | 17.6% / 33.0% | 82 ms | 183 ms | 625 ms |
+| 600 | ~1800 | 17.2% / 22.0% | 28.8% / 46.0% | 127 ms | 239 ms | 704 ms |
+
+CPU% is percentage of one core. `api`'s cost scales with device count because `ws_broadcaster` polls latest readings for all devices to push over the WebSocket regardless of how many UI clients are connected; `ingestion` scales with message volume as expected. Latency stays well under a second at every scale tested here — comfortably fast enough for a live dashboard — with headroom to spare on modest hardware.
+
 ## Architecture (MVP)
 
 ```
