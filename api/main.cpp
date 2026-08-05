@@ -37,12 +37,14 @@ int main(int argc, char* argv[]) {
     parser.addOption({{"m", "mqtt"}, "MQTT broker URL", "url", "tcp://localhost:1883"});
     parser.addOption({{"b", "bind"},
                       "Interface to bind HTTP/WS servers to (e.g. 127.0.0.1 for loopback-only)",
-                      "address", "0.0.0.0"});
+                      "address",
+                      "0.0.0.0"});
     parser.addOption({{"k", "api-key"},
                       "Require this value in the X-Api-Key header / WS api_key query param on "
                       "every /api/* and WebSocket request. Falls back to FORGESIGHT_API_KEY. "
                       "Empty disables auth (default; fine for local dev only).",
-                      "key", ""});
+                      "key",
+                      ""});
     parser.process(app);
 
     quint16 httpPort = parser.value("port").toUShort();
@@ -60,8 +62,8 @@ int main(int argc, char* argv[]) {
     }
     if (apiKey.empty()) {
         spdlog::warn("ApiServer starting with no API key configured — /api/* routes are "
-                    "unauthenticated. Set --api-key or FORGESIGHT_API_KEY for any non-local "
-                    "deployment.");
+                     "unauthenticated. Set --api-key or FORGESIGHT_API_KEY for any non-local "
+                     "deployment.");
     }
 
     auto* conn = connect_db(conn_str);

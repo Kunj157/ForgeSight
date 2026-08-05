@@ -173,9 +173,9 @@ void WsClient::on_ssl_errors(const QList<QSslError>& errors) {
         messages << e.errorString();
     }
     qWarning("WsClient: TLS validation failed (%s); refusing to connect. Set "
-            "allowInsecureTls/FORGESIGHT_ALLOW_INSECURE_TLS only for trusted self-signed "
-            "deployments.",
-            qUtf8Printable(messages.join(QStringLiteral("; "))));
+             "allowInsecureTls/FORGESIGHT_ALLOW_INSECURE_TLS only for trusted self-signed "
+             "deployments.",
+             qUtf8Printable(messages.join(QStringLiteral("; "))));
 #else
     Q_UNUSED(errors);
 #endif
