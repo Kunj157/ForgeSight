@@ -154,6 +154,46 @@ TEST_F(ApiClientTest, FetchDevicesEmitsDeviceMeta) {
     EXPECT_EQ(spy[0][2].toString(), "Floor 1");
 }
 
+TEST_F(ApiClientTest, RequestsOmitApiKeyHeaderByDefault) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+
+    QSignalSpy spy(&client, &ui::ApiClient::readingReceived);
+    client.fetchLatestReadings();
+    ASSERT_TRUE(spy.wait(2000));
+    EXPECT_FALSE(server.last_request_.contains("X-Api-Key"));
+}
+
+TEST_F(ApiClientTest, RequestsIncludeApiKeyHeaderWhenConfigured) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+    client.set_api_key(QStringLiteral("secret123"));
+
+    QSignalSpy spy(&client, &ui::ApiClient::readingReceived);
+    client.fetchLatestReadings();
+    ASSERT_TRUE(spy.wait(2000));
+    EXPECT_TRUE(server.last_request_.contains("X-Api-Key: secret123"));
+}
+
+TEST_F(ApiClientTest, HistoryAndPostRequestsAlsoIncludeApiKeyHeader) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+    client.set_api_key(QStringLiteral("secret123"));
+
+    QSignalSpy historySpy(&client, &ui::ApiClient::historyLoadFinished);
+    client.fetchHistory("pump-001", "temperature", "2026-07-30T00:00:00Z");
+    ASSERT_TRUE(historySpy.wait(2000));
+    EXPECT_TRUE(server.last_history_request_.contains("X-Api-Key: secret123"));
+
+    QSignalSpy ackSpy(&client, &ui::ApiClient::alarmAckSucceeded);
+    client.acknowledgeAlarm(42);
+    ASSERT_TRUE(ackSpy.wait(2000));
+    EXPECT_TRUE(server.last_request_.contains("X-Api-Key: secret123"));
+}
+
 TEST_F(ApiClientTest, AcknowledgeAlarmPostsAndEmitsSuccess) {
     FakeHttpServer server;
     ui::ApiClient client;
