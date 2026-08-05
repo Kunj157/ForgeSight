@@ -1,3 +1,17 @@
+# Local agent docs (not committed)
+AGENTS.md
+implementation-plan.md
+
+# Environment / secrets
+.env
+.env.*
+
+# Docs and data (fetched via scripts, not stored in repo)
+/docs/
+/data/
+/models/
+/build-artifacts/
+
 # Prerequisites
 *.d
 
@@ -52,6 +66,10 @@ Makefile
 install_manifest.txt
 compile_commands.json
 
+# Python
+__pycache__/
+*.pyc
+
 # Temporary files
 *.tmp
 *.log
@@ -67,3 +85,8 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# AppImage packaging (scripts/package-appimage.sh) — downloaded tools and
+# generated output, not stored in repo
+/.tools/
+/dist/

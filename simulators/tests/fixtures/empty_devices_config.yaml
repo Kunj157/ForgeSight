@@ -1,0 +1,7 @@
+devices: []
+publish_interval_sec: 1.0
+anomaly_injection_rate: 0.02
+broker:
+  host: "localhost"
+  port: 1883
+  topic_prefix: "factory/devices"

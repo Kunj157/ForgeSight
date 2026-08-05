@@ -1,0 +1,30 @@
+#pragma once
+
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "alarm-engine/types.h"
+
+namespace api {
+
+class RuleService {
+  public:
+    explicit RuleService(void* conn);
+
+    std::vector<alarm_engine::Rule> list_rules() const;
+    std::optional<alarm_engine::Rule> get_rule(std::int64_t id) const;
+    std::int64_t create_rule(const alarm_engine::Rule& rule);
+    bool update_rule(const alarm_engine::Rule& rule);
+    bool delete_rule(std::int64_t id);
+
+    std::vector<alarm_engine::Alarm> get_alarms_since(const std::string& since) const;
+    std::vector<alarm_engine::Alarm> list_alarms(bool unacknowledged_only = false) const;
+    bool acknowledge_alarm(std::int64_t id);
+
+  private:
+    void* conn_;
+};
+
+} // namespace api

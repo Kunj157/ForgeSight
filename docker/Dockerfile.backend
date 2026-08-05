@@ -1,0 +1,54 @@
+# Single build producing all three ForgeSight backend binaries (ingestion,
+# alarm-engine, api) in one runtime image. docker-compose.yml runs that one
+# image three times with a different `entrypoint:` per service.
+#
+# This used to be three separate final stages (one per service) sharing one
+# `builder` stage, selected via `docker build --target <service>`. Clean in
+# theory, but `docker compose build`'s default parallel bake mode does NOT
+# dedupe a stage shared across targets in the same invocation
+# (docker/compose#13043) — it raced 3 concurrent copies of the same
+# ~200-package qt6-base-dev apt-get/dpkg-unpack against the same mirrors and
+# disk, which was enough concurrent I/O + memory pressure to freeze a real
+# dev machine. Building one image with no service-specific targets means
+# there's nothing for compose to build in parallel in the first place,
+# regardless of COMPOSE_BAKE/parallel settings.
+#
+# Build context must be the repo root, e.g.:
+#   docker build -f docker/Dockerfile.backend -t forgesight-backend .
+
+FROM ubuntu:24.04 AS builder
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        cmake make g++ pkg-config ca-certificates git \
+        nlohmann-json3-dev libspdlog-dev libpq-dev \
+        libpaho-mqtt-dev libpaho-mqttpp-dev \
+        qt6-base-dev qt6-httpserver-dev qt6-websockets-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY CMakeLists.txt ./
+COPY ingestion ./ingestion
+COPY alarm-engine ./alarm-engine
+COPY api ./api
+COPY tests ./tests
+
+# --parallel is capped at 2 (not $(nproc)) on purpose: this project is small
+# enough that the extra wall-clock time is negligible, and a fixed low cap
+# keeps memory use predictable on whatever machine happens to run the build
+# instead of scaling with core count.
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --parallel 2 --target ingestion alarm-engine api
+
+# ---- runtime: shared libs for all three binaries in one image ----
+FROM ubuntu:24.04 AS runtime
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq5 libpaho-mqtt1.3 libpaho-mqttpp3-1 libspdlog1.12 ca-certificates \
+        libqt6core6t64 libqt6network6t64 libqt6httpserver6 libqt6websockets6 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /src/build/ingestion/ingestion /usr/local/bin/ingestion
+COPY --from=builder /src/build/alarm-engine/alarm-engine /usr/local/bin/alarm-engine
+COPY --from=builder /src/build/api/api /usr/local/bin/api
+
+EXPOSE 8080 8081

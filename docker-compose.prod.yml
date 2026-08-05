@@ -1,0 +1,24 @@
+# Override for docker-compose.yml: run the GHCR image published by
+# .github/workflows/release.yml instead of building locally. Intended for a
+# deploy target (see .github/workflows/deploy.yml), not local development —
+# for local dev, just use `docker compose up --build` with the base file.
+#
+# Usage on the deploy host:
+#   export FORGESIGHT_IMAGE_OWNER=<your GHCR namespace, lowercase>
+#   export FORGESIGHT_IMAGE_TAG=v1.0.0   # or `latest`
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
+#
+# `--no-build` is the important part: it tells Compose to use the `image:`
+# below as-is and error rather than silently falling back to building
+# ingestion's `build:` section from docker-compose.yml (which the deploy
+# host likely doesn't even have the compiler toolchain to do).
+services:
+  ingestion:
+    image: ghcr.io/${FORGESIGHT_IMAGE_OWNER:?set FORGESIGHT_IMAGE_OWNER}/forgesight-backend:${FORGESIGHT_IMAGE_TAG:-latest}
+
+  alarm-engine:
+    image: ghcr.io/${FORGESIGHT_IMAGE_OWNER:?set FORGESIGHT_IMAGE_OWNER}/forgesight-backend:${FORGESIGHT_IMAGE_TAG:-latest}
+
+  api:
+    image: ghcr.io/${FORGESIGHT_IMAGE_OWNER:?set FORGESIGHT_IMAGE_OWNER}/forgesight-backend:${FORGESIGHT_IMAGE_TAG:-latest}

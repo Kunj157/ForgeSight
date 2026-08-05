@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: forgesight_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d forgesight_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake g++ pkg-config \
+            nlohmann-json3-dev libspdlog-dev libpq-dev \
+            libpaho-mqtt-dev libpaho-mqttpp-dev \
+            libqt6sql6-sqlite \
+            qt6-base-dev qt6-declarative-dev qt6-charts-dev \
+            qt6-httpserver-dev qt6-websockets-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtcharts \
+            qml6-module-qtquick-window \
+            qml6-module-qtqml \
+            qml6-module-qtqml-workerscript \
+            xvfb
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          QML2_IMPORT_PATH: /usr/lib/x86_64-linux-gnu/qt6/qml
+          QT_QPA_PLATFORM: offscreen
+          FORGESIGHT_TEST_DB: "host=127.0.0.1 port=5432 dbname=forgesight_test user=postgres password=postgres"
+
+      # Reuses this job's own build/ output rather than a separate job, since
+      # that avoids re-installing the whole Qt package list from scratch.
+      # GitHub-hosted runners don't have a working /dev/fuse, so this also
+      # exercises the script's extract+run fallback as a side effect.
+      - name: Package AppImage
+        run: ./scripts/package-appimage.sh
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+
+      - name: Smoke-test AppImage
+        run: |
+          Xvfb :99 -screen 0 1280x800x24 &
+          sleep 2
+          DISPLAY=:99 APPIMAGE_EXTRACT_AND_RUN=1 timeout 10 ./dist/ForgeSight-x86_64.AppImage 2>&1 | tee /tmp/appimage.log || true
+          grep -q "window ready" /tmp/appimage.log
+
+  asan:
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: forgesight_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d forgesight_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake g++ pkg-config \
+            nlohmann-json3-dev libspdlog-dev libpq-dev \
+            libpaho-mqtt-dev libpaho-mqttpp-dev \
+            libqt6sql6-sqlite \
+            qt6-base-dev qt6-declarative-dev qt6-charts-dev \
+            qt6-httpserver-dev qt6-websockets-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtcharts \
+            qml6-module-qtquick-window \
+            qml6-module-qtqml \
+            qml6-module-qtqml-workerscript
+
+      # Same matrix as `build`, plus AddressSanitizer. Configured before any
+      # add_subdirectory() in the root CMakeLists.txt so every target — app
+      # code, tests, and FetchContent-populated googletest alike — is built
+      # with consistent instrumentation.
+      - name: Configure
+        run: cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug -DFORGESIGHT_ENABLE_ASAN=ON
+
+      - name: Build
+        run: cmake --build build-asan --parallel
+
+      # Sequential on purpose: several DB-backed tests share a hardcoded
+      # 'svc-test' device_id row in the same Postgres instance, so running
+      # them concurrently (ctest -j) causes cross-test data races that are
+      # unrelated to actual memory-safety bugs.
+      - name: Test under ASan
+        run: ctest --test-dir build-asan --output-on-failure
+        env:
+          QML2_IMPORT_PATH: /usr/lib/x86_64-linux-gnu/qt6/qml
+          QT_QPA_PLATFORM: offscreen
+          FORGESIGHT_TEST_DB: "host=127.0.0.1 port=5432 dbname=forgesight_test user=postgres password=postgres"
+          ASAN_OPTIONS: detect_leaks=1
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          python3 -m pip install --user clang-format==22.1.8
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Check formatting
+        run: |
+          find ingestion alarm-engine api ui tests \
+            \( -name '*.cpp' -o -name '*.h' \) \
+            -print0 | xargs -0 clang-format --dry-run --Werror
+
+  simulators-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: python3 -m pip install --user pytest paho-mqtt PyYAML
+
+      - name: Test
+        run: PYTHONPATH=. python3 -m pytest simulators/ -v
+
+  docker:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only `ingestion` declares `build:` in docker-compose.yml (the other
+      # two services reuse that same image via `image:` + entrypoint
+      # overrides), so this is a single image build — see #28 for why that
+      # matters: an earlier per-service-target design let `docker compose
+      # build`'s parallel mode triple the heaviest step (installing the Qt
+      # toolchain) and once froze a real dev machine.
+      - name: Build backend image
+        run: docker compose build

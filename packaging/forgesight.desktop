@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ForgeSight
+GenericName=Factory Monitoring Dashboard
+Comment=Real-time industrial device monitoring — live dashboards, alarms, and history
+Exec=factory-pulse
+Icon=forgesight
+Categories=Utility;Engineering;
+Terminal=false
