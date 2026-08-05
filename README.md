@@ -131,7 +131,27 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-To run the published image stack instead of building locally, point `docker-compose.yml`'s `image:`/`build:` at `ghcr.io/<owner>/forgesight-backend:vX.Y.Z` (or `:latest`) and drop the `build:` section.
+To run the published image stack instead of building locally, use the `docker-compose.prod.yml` override, which points all three backend services at the GHCR image instead of building:
+
+```bash
+export FORGESIGHT_IMAGE_OWNER=<your GHCR namespace, lowercase>
+export FORGESIGHT_IMAGE_TAG=v1.0.0   # or `latest`
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
+```
+
+## Deploy (optional)
+
+`.github/workflows/deploy.yml` is a thin, manual (`workflow_dispatch`-only) template for pushing a release to an SSH-reachable host that already has Docker + Compose installed — this repo doesn't have an actual VPS configured, so running it as-is will fail with a clear error listing which repo secrets to add first:
+
+| Secret | Purpose |
+|---|---|
+| `DEPLOY_SSH_HOST` / `DEPLOY_SSH_USER` / `DEPLOY_SSH_PRIVATE_KEY` | SSH access to the deploy host |
+| `DEPLOY_PATH` | Absolute path on the host containing `docker-compose.yml` + `docker-compose.prod.yml` |
+| `FORGESIGHT_IMAGE_OWNER` | GHCR namespace the backend image was published under |
+| `FORGESIGHT_API_KEY` *(optional)* | Forwarded to the `api` container — see [Security](#security) |
+
+Once configured, trigger it from the Actions tab (or `gh workflow run deploy.yml -f image_tag=v1.0.0`); it SSHes in and runs the same `pull` + `up -d --no-build` shown above.
 
 ## Load testing
 

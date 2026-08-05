@@ -1,0 +1,75 @@
+name: Deploy (backend)
+
+# Optional, thin deploy workflow for an SSH-reachable host already running
+# Docker + Compose (item 20 of the production roadmap — this repo doesn't
+# have an actual VPS target, so treat this as a documented template).
+# Manual only: it never fires on a push/PR, and the check-secrets step fails
+# fast with exactly which repo secrets are missing if run unconfigured.
+#
+# Required repo secrets:
+#   DEPLOY_SSH_HOST         e.g. deploy.example.com
+#   DEPLOY_SSH_USER         e.g. forgesight
+#   DEPLOY_SSH_PRIVATE_KEY  private key with access to that host/user
+#   DEPLOY_PATH             absolute path on the host containing
+#                           docker-compose.yml + docker-compose.prod.yml
+#   FORGESIGHT_IMAGE_OWNER  GHCR namespace the backend image was published
+#                           under (lowercase; matches release.yml)
+#
+# Optional repo secret:
+#   FORGESIGHT_API_KEY      forwarded to the api container if set (see the
+#                           "Security" section in README.md)
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Backend image tag to deploy (a release.yml tag, e.g. v1.0.0, or 'latest')"
+        required: false
+        default: latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check required secrets are configured
+        run: |
+          missing=()
+          [[ -z "${{ secrets.DEPLOY_SSH_HOST }}" ]] && missing+=(DEPLOY_SSH_HOST)
+          [[ -z "${{ secrets.DEPLOY_SSH_USER }}" ]] && missing+=(DEPLOY_SSH_USER)
+          [[ -z "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" ]] && missing+=(DEPLOY_SSH_PRIVATE_KEY)
+          [[ -z "${{ secrets.DEPLOY_PATH }}" ]] && missing+=(DEPLOY_PATH)
+          [[ -z "${{ secrets.FORGESIGHT_IMAGE_OWNER }}" ]] && missing+=(FORGESIGHT_IMAGE_OWNER)
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error::deploy.yml is a template — this repo has no configured deploy target yet. Set these repo secrets first: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      # docker-compose.yml + docker-compose.prod.yml are expected to already
+      # exist at DEPLOY_PATH on the host (kept there rather than synced from
+      # this checkout, so a deploy never depends on this repo's working
+      # tree matching what the host is running — only the tagged image does).
+      - name: Pull and restart the backend stack over SSH
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_OWNER: ${{ secrets.FORGESIGHT_IMAGE_OWNER }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          API_KEY: ${{ secrets.FORGESIGHT_API_KEY }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" bash -s <<EOF
+            set -euo pipefail
+            cd "$DEPLOY_PATH"
+            export FORGESIGHT_IMAGE_OWNER="$IMAGE_OWNER"
+            export FORGESIGHT_IMAGE_TAG="$IMAGE_TAG"
+            export FORGESIGHT_API_KEY="$API_KEY"
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+          EOF
