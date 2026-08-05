@@ -33,9 +33,14 @@ int main(int argc, char* argv[]) {
     QString wsUrl = qEnvironmentVariable("FORGESIGHT_WS", "ws://127.0.0.1:8081");
     QString cacheDbPath =
         qEnvironmentVariable("FORGESIGHT_CACHE_DB", ui::OfflineCache::default_path());
+    QString apiKey = qEnvironmentVariable("FORGESIGHT_API_KEY");
+    bool allowInsecureTls = qEnvironmentVariable("FORGESIGHT_ALLOW_INSECURE_TLS") == "1";
 
     apiClient.set_base_url(QUrl(apiBase));
+    apiClient.set_api_key(apiKey);
     wsClient.set_url(QUrl(wsUrl));
+    wsClient.set_api_key(apiKey);
+    wsClient.set_allow_insecure_tls(allowInsecureTls);
     wsClient.set_auto_reconnect(true);
 
     if (!offlineCache.open(cacheDbPath)) {

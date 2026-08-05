@@ -83,6 +83,14 @@ services:
     ports:
       - "8080:8080"
       - "8081:8081"
+    # Optional: set FORGESIGHT_API_KEY in the host shell/.env before `up` to
+    # require it on every /api/* and WebSocket request (empty/unset keeps
+    # auth disabled, matching local-dev defaults). --bind stays 0.0.0.0 here
+    # deliberately — Docker's port mapping forwards to the container's
+    # network namespace, not loopback, so binding to 127.0.0.1 would make
+    # the published ports unreachable from the host.
+    environment:
+      - FORGESIGHT_API_KEY=${FORGESIGHT_API_KEY:-}
     command:
       - --database
       - host=postgres dbname=forgesight user=forgesight password=forgesight

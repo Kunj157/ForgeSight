@@ -2,6 +2,8 @@
 
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLoggingCategory>
+#include <QUrlQuery>
 #include <algorithm>
 #include <cmath>
 
@@ -50,6 +52,38 @@ void WsClient::set_auto_reconnect(bool enabled) {
     Q_EMIT autoReconnectChanged();
 }
 
+QString WsClient::api_key() const {
+    return api_key_;
+}
+
+void WsClient::set_api_key(const QString& key) {
+    if (api_key_ == key)
+        return;
+    api_key_ = key;
+    Q_EMIT apiKeyChanged();
+}
+
+bool WsClient::allow_insecure_tls() const {
+    return allow_insecure_tls_;
+}
+
+void WsClient::set_allow_insecure_tls(bool allow) {
+    if (allow_insecure_tls_ == allow)
+        return;
+    allow_insecure_tls_ = allow;
+    Q_EMIT allowInsecureTlsChanged();
+}
+
+QUrl WsClient::effective_url() const {
+    if (api_key_.isEmpty())
+        return url_;
+    QUrl u = url_;
+    QUrlQuery query(u.query());
+    query.addQueryItem(QStringLiteral("api_key"), api_key_);
+    u.setQuery(query);
+    return u;
+}
+
 int WsClient::reconnect_delay_ms(int attempt) {
     const int capped = std::max(0, std::min(attempt, 15));
     const int delay = static_cast<int>(1000 * std::pow(2.0, capped));
@@ -67,7 +101,7 @@ void WsClient::connectToServer() {
         socket_.state() == QAbstractSocket::ConnectingState) {
         return;
     }
-    socket_.open(url_);
+    socket_.open(effective_url());
 }
 
 void WsClient::disconnectFromServer() {
@@ -84,7 +118,7 @@ void WsClient::try_reconnect() {
         socket_.state() == QAbstractSocket::ConnectingState) {
         return;
     }
-    socket_.open(url_);
+    socket_.open(effective_url());
 }
 
 void WsClient::on_connected() {
@@ -129,9 +163,21 @@ void WsClient::on_text_message_received(const QString& message) {
 }
 
 void WsClient::on_ssl_errors(const QList<QSslError>& errors) {
-    Q_UNUSED(errors);
 #ifndef QT_NO_SSL
-    socket_.ignoreSslErrors();
+    if (allow_insecure_tls_) {
+        socket_.ignoreSslErrors();
+        return;
+    }
+    QStringList messages;
+    for (const auto& e : errors) {
+        messages << e.errorString();
+    }
+    qWarning("WsClient: TLS validation failed (%s); refusing to connect. Set "
+             "allowInsecureTls/FORGESIGHT_ALLOW_INSECURE_TLS only for trusted self-signed "
+             "deployments.",
+             qUtf8Printable(messages.join(QStringLiteral("; "))));
+#else
+    Q_UNUSED(errors);
 #endif
 }
 

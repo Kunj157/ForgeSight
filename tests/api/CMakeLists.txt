@@ -8,7 +8,7 @@ FetchContent_MakeAvailable(googletest)
 
 include(GoogleTest)
 
-find_package(Qt6 REQUIRED COMPONENTS Network)
+find_package(Qt6 REQUIRED COMPONENTS Network Test)
 
 add_executable(api_tests
     test_ws_broadcaster.cpp
@@ -21,6 +21,7 @@ target_link_libraries(api_tests PRIVATE
     GTest::gtest_main
     nlohmann_json::nlohmann_json
     Qt6::Network
+    Qt6::Test
 )
 
 gtest_discover_tests(api_tests)

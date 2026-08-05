@@ -13,6 +13,9 @@ class WsClient : public QObject {
     Q_PROPERTY(QUrl url READ url WRITE set_url NOTIFY urlChanged)
     Q_PROPERTY(
         bool autoReconnect READ auto_reconnect WRITE set_auto_reconnect NOTIFY autoReconnectChanged)
+    Q_PROPERTY(QString apiKey READ api_key WRITE set_api_key NOTIFY apiKeyChanged)
+    Q_PROPERTY(bool allowInsecureTls READ allow_insecure_tls WRITE set_allow_insecure_tls NOTIFY
+                   allowInsecureTlsChanged)
 
   public:
     explicit WsClient(QObject* parent = nullptr);
@@ -24,6 +27,16 @@ class WsClient : public QObject {
     bool auto_reconnect() const;
     void set_auto_reconnect(bool enabled);
 
+    QString api_key() const;
+    void set_api_key(const QString& key);
+
+    // Gates WsClient::on_ssl_errors()'s use of QWebSocket::ignoreSslErrors().
+    // Defaults to false so a release build never silently bypasses TLS
+    // validation; an operator must opt in explicitly (e.g. for a self-signed
+    // cert in a trusted LAN deployment).
+    bool allow_insecure_tls() const;
+    void set_allow_insecure_tls(bool allow);
+
     /// Exponential backoff: 1s, 2s, 4s… capped at 30s.
     static int reconnect_delay_ms(int attempt);
 
@@ -34,6 +47,8 @@ class WsClient : public QObject {
     void connectedChanged();
     void urlChanged();
     void autoReconnectChanged();
+    void apiKeyChanged();
+    void allowInsecureTlsChanged();
     void readingReceived(const QString& json);
     void alarmReceived(const QString& json);
     void connectionError(const QString& error);
@@ -48,12 +63,16 @@ class WsClient : public QObject {
     void try_reconnect();
 
   private:
+    QUrl effective_url() const;
+
     QWebSocket socket_;
     QUrl url_;
+    QString api_key_;
     QTimer reconnect_timer_;
     bool connected_ = false;
     bool auto_reconnect_ = true;
     bool manual_disconnect_ = false;
+    bool allow_insecure_tls_ = false;
     int reconnect_attempt_ = 0;
 };
 

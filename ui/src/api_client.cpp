@@ -25,6 +25,25 @@ bool ApiClient::is_busy() const {
     return busy_;
 }
 
+QString ApiClient::api_key() const {
+    return api_key_;
+}
+
+void ApiClient::set_api_key(const QString& key) {
+    if (api_key_ == key)
+        return;
+    api_key_ = key;
+    Q_EMIT apiKeyChanged();
+}
+
+QNetworkRequest ApiClient::make_request(const QUrl& url) const {
+    QNetworkRequest req(url);
+    if (!api_key_.isEmpty()) {
+        req.setRawHeader("X-Api-Key", api_key_.toUtf8());
+    }
+    return req;
+}
+
 void ApiClient::set_busy(bool busy) {
     if (busy_ == busy)
         return;
@@ -45,7 +64,7 @@ void ApiClient::get_json(const QString& path, const std::function<void(const QBy
     ++pending_;
     set_busy(true);
 
-    auto* reply = nam_.get(QNetworkRequest(url));
+    auto* reply = nam_.get(make_request(url));
     connect(reply, &QNetworkReply::finished, this, [this, reply, on_ok]() {
         reply->deleteLater();
         const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
@@ -70,7 +89,7 @@ void ApiClient::post_json(const QString& path, const QByteArray& body,
     QUrl url = base_url_;
     url.setPath(path);
 
-    QNetworkRequest req(url);
+    QNetworkRequest req = make_request(url);
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
 
     ++pending_;
@@ -150,7 +169,7 @@ void ApiClient::fetchHistory(const QString& deviceId, const QString& sensor, con
     url.setQuery(QStringLiteral("since=%1").arg(since));
 
     set_busy(true);
-    auto* reply = nam_.get(QNetworkRequest(url));
+    auto* reply = nam_.get(make_request(url));
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         set_busy(false);
