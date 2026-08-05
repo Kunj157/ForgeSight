@@ -43,20 +43,27 @@ ApiServer::ApiServer(void* conn, QObject* parent)
 
 ApiServer::~ApiServer() = default;
 
-bool ApiServer::start(quint16 httpPort, quint16 wsPort, const std::string& mqttBroker) {
+bool ApiServer::start(quint16 httpPort, quint16 wsPort, const std::string& mqttBroker,
+                      const QHostAddress& bindAddress, const std::string& apiKey) {
+    bindAddress_ = bindAddress;
+    apiKey_ = apiKey;
+
     setupRoutes();
 
-    port_ = server_.listen(QHostAddress::Any, httpPort);
+    port_ = server_.listen(bindAddress_, httpPort);
     if (port_ == 0) {
         spdlog::error("ApiServer: failed to listen on HTTP port {}", httpPort);
         return false;
     }
     spdlog::info("ApiServer: REST listening on port {}", port_);
+    if (!apiKey_.empty()) {
+        spdlog::info("ApiServer: API key auth enabled for /api/* routes");
+    }
 
     wsServer_ =
         std::make_unique<QWebSocketServer>("ForgeSight WS", QWebSocketServer::NonSecureMode, this);
 
-    if (!wsServer_->listen(QHostAddress::Any, wsPort)) {
+    if (!wsServer_->listen(bindAddress_, wsPort)) {
         spdlog::error("ApiServer: failed to listen on WS port {}", wsPort);
         return false;
     }
@@ -109,6 +116,13 @@ void ApiServer::stop() {
     server_.listen(QHostAddress::Any, 0);
     port_ = 0;
     wsPort_ = 0;
+}
+
+bool ApiServer::is_authorized(const QHttpServerRequest& req) const {
+    if (apiKey_.empty()) {
+        return true;
+    }
+    return req.value("X-Api-Key").toStdString() == apiKey_;
 }
 
 void ApiServer::seed_default_device_locations() {
@@ -167,6 +181,16 @@ void ApiServer::on_new_websocket_connection() {
         if (!socket)
             continue;
 
+        if (!apiKey_.empty()) {
+            QUrlQuery query(socket->requestUrl().query());
+            if (query.queryItemValue("api_key").toStdString() != apiKey_) {
+                spdlog::warn("WS client rejected: missing/incorrect api_key");
+                socket->close(QWebSocketProtocol::CloseCodeNormal, "unauthorized");
+                socket->deleteLater();
+                continue;
+            }
+        }
+
         auto id = broadcaster_.add_connection([ws = socket](const std::string& msg) {
             ws->sendTextMessage(QString::fromStdString(msg));
         });
@@ -182,7 +206,9 @@ void ApiServer::on_new_websocket_connection() {
 
 void ApiServer::setupRoutes() {
     server_.route("/api/devices", [this](const QHttpServerRequest& req) {
-        (void)req;
+        if (!is_authorized(req)) {
+            return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+        }
         auto devices = deviceService_.list_devices();
 
         json j = json::array();
@@ -202,7 +228,9 @@ void ApiServer::setupRoutes() {
     });
 
     server_.route("/api/readings/latest", [this](const QHttpServerRequest& req) {
-        (void)req;
+        if (!is_authorized(req)) {
+            return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+        }
         auto readings = deviceService_.list_latest_readings();
         json j = json::array();
         for (const auto& r : readings) {
@@ -217,7 +245,9 @@ void ApiServer::setupRoutes() {
     });
 
     server_.route("/api/alarms", [this](const QHttpServerRequest& req) {
-        (void)req;
+        if (!is_authorized(req)) {
+            return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+        }
         auto alarms = ruleService_.list_alarms(false);
         json j = json::array();
         for (const auto& a : alarms) {
@@ -236,6 +266,9 @@ void ApiServer::setupRoutes() {
 
     server_.route("/api/history/<arg>/<arg>", [this](const QString& deviceId, const QString& sensor,
                                                      const QHttpServerRequest& req) {
+        if (!is_authorized(req)) {
+            return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+        }
         QUrlQuery query(req.url().query());
         QString since = query.queryItemValue("since");
         if (since.isEmpty()) {
@@ -260,7 +293,9 @@ void ApiServer::setupRoutes() {
 
     server_.route(
         "/api/rules", QHttpServerRequest::Method::Get, [this](const QHttpServerRequest& req) {
-            (void)req;
+            if (!is_authorized(req)) {
+                return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+            }
             auto rules = ruleService_.list_rules();
 
             json j = json::array();
@@ -278,6 +313,9 @@ void ApiServer::setupRoutes() {
 
     server_.route(
         "/api/rules", QHttpServerRequest::Method::Post, [this](const QHttpServerRequest& req) {
+            if (!is_authorized(req)) {
+                return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+            }
             auto body = QJsonDocument::fromJson(req.body()).object();
             alarm_engine::Rule r;
             r.device_id = body.value("device_id").toString().toStdString();
@@ -301,7 +339,9 @@ void ApiServer::setupRoutes() {
 
     server_.route("/api/rules/<arg>", QHttpServerRequest::Method::Get,
                   [this](const QString& ruleId, const QHttpServerRequest& req) {
-                      (void)req;
+                      if (!is_authorized(req)) {
+                          return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+                      }
                       bool parsed = false;
                       auto id = ruleId.toLongLong(&parsed);
                       if (!parsed) {
@@ -324,6 +364,9 @@ void ApiServer::setupRoutes() {
     server_.route(
         "/api/rules/<arg>", QHttpServerRequest::Method::Put,
         [this](const QString& ruleId, const QHttpServerRequest& req) {
+            if (!is_authorized(req)) {
+                return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+            }
             bool parsed = false;
             auto id = ruleId.toLongLong(&parsed);
             if (!parsed) {
@@ -349,7 +392,9 @@ void ApiServer::setupRoutes() {
 
     server_.route("/api/rules/<arg>", QHttpServerRequest::Method::Delete,
                   [this](const QString& ruleId, const QHttpServerRequest& req) {
-                      (void)req;
+                      if (!is_authorized(req)) {
+                          return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+                      }
                       bool parsed = false;
                       auto id = ruleId.toLongLong(&parsed);
                       if (!parsed) {
@@ -365,7 +410,9 @@ void ApiServer::setupRoutes() {
 
     server_.route("/api/alarms/<arg>/ack", QHttpServerRequest::Method::Post,
                   [this](const QString& alarmId, const QHttpServerRequest& req) {
-                      (void)req;
+                      if (!is_authorized(req)) {
+                          return QHttpServerResponse(QHttpServerResponse::StatusCode::Unauthorized);
+                      }
                       bool ok = false;
                       bool parsed = false;
                       std::int64_t id = alarmId.toLongLong(&parsed);

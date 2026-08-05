@@ -8,7 +8,10 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSignalSpy>
+#include <QTimer>
 #include <QUrl>
+#include <QWebSocket>
 
 #include "api/api_server.h"
 
@@ -27,6 +30,23 @@ QJsonArray get_json(const QUrl& url) {
     reply->deleteLater();
 
     return QJsonDocument::fromJson(data).array();
+}
+
+int http_status(const QUrl& url, const QByteArray& apiKeyHeader = {}) {
+    QNetworkAccessManager mgr;
+    QNetworkRequest req(url);
+    if (!apiKeyHeader.isEmpty()) {
+        req.setRawHeader("X-Api-Key", apiKeyHeader);
+    }
+    auto* reply = mgr.get(req);
+
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    reply->deleteLater();
+    return status;
 }
 
 int argc = 0;
@@ -134,5 +154,102 @@ TEST(ApiServerTest, CreateRuleViaPostRequiresDb) {
     loop.exec();
     EXPECT_EQ(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(), 400);
     reply->deleteLater();
+    server.stop();
+}
+
+TEST(ApiServerTest, NoApiKeyConfiguredAllowsRequestsWithoutHeader) {
+    // Default/backward-compatible behavior: an empty api key (the default)
+    // disables auth entirely, so local dev needs zero extra setup.
+    api::ApiServer server(nullptr);
+    ASSERT_TRUE(server.start(0));
+
+    QUrl url(QString("http://127.0.0.1:%1/api/devices").arg(server.port()));
+    EXPECT_EQ(http_status(url), 200);
+
+    server.stop();
+}
+
+TEST(ApiServerTest, ApiRoutesRejectMissingApiKeyWhenConfigured) {
+    api::ApiServer server(nullptr);
+    ASSERT_TRUE(server.start(0, 0, "", QHostAddress::Any, "secret123"));
+
+    QUrl url(QString("http://127.0.0.1:%1/api/devices").arg(server.port()));
+    EXPECT_EQ(http_status(url), 401);
+
+    server.stop();
+}
+
+TEST(ApiServerTest, ApiRoutesRejectWrongApiKeyWhenConfigured) {
+    api::ApiServer server(nullptr);
+    ASSERT_TRUE(server.start(0, 0, "", QHostAddress::Any, "secret123"));
+
+    QUrl url(QString("http://127.0.0.1:%1/api/devices").arg(server.port()));
+    EXPECT_EQ(http_status(url, "wrong"), 401);
+
+    server.stop();
+}
+
+TEST(ApiServerTest, ApiRoutesAcceptCorrectApiKeyWhenConfigured) {
+    api::ApiServer server(nullptr);
+    ASSERT_TRUE(server.start(0, 0, "", QHostAddress::Any, "secret123"));
+
+    QUrl url(QString("http://127.0.0.1:%1/api/devices").arg(server.port()));
+    EXPECT_EQ(http_status(url, "secret123"), 200);
+
+    server.stop();
+}
+
+TEST(ApiServerTest, HealthEndpointStaysOpenEvenWhenApiKeyConfigured) {
+    api::ApiServer server(nullptr);
+    ASSERT_TRUE(server.start(0, 0, "", QHostAddress::Any, "secret123"));
+
+    QUrl url(QString("http://127.0.0.1:%1/health").arg(server.port()));
+    EXPECT_EQ(http_status(url), 200);
+
+    server.stop();
+}
+
+TEST(ApiServerTest, WebSocketRejectsWrongApiKeyWhenConfigured) {
+    api::ApiServer server(nullptr);
+    ASSERT_TRUE(server.start(0, 0, "", QHostAddress::Any, "secret123"));
+
+    QWebSocket socket;
+    QSignalSpy disconnectedSpy(&socket, &QWebSocket::disconnected);
+    socket.open(QUrl(QString("ws://127.0.0.1:%1/?api_key=wrong").arg(server.wsPort())));
+
+    QEventLoop loop;
+    QObject::connect(&socket, &QWebSocket::disconnected, &loop, &QEventLoop::quit);
+    QTimer::singleShot(3000, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    EXPECT_GE(disconnectedSpy.count(), 1);
+    server.stop();
+}
+
+TEST(ApiServerTest, WebSocketAcceptsCorrectApiKeyWhenConfigured) {
+    api::ApiServer server(nullptr);
+    ASSERT_TRUE(server.start(0, 0, "", QHostAddress::Any, "secret123"));
+
+    QWebSocket socket;
+    QSignalSpy connectedSpy(&socket, &QWebSocket::connected);
+    socket.open(QUrl(QString("ws://127.0.0.1:%1/?api_key=secret123").arg(server.wsPort())));
+
+    QEventLoop loop;
+    QObject::connect(&socket, &QWebSocket::connected, &loop, &QEventLoop::quit);
+    QTimer::singleShot(3000, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    EXPECT_EQ(connectedSpy.count(), 1);
+    server.stop();
+}
+
+TEST(ApiServerTest, BindAddressCanBeRestrictedToLoopback) {
+    api::ApiServer server(nullptr);
+    ASSERT_TRUE(server.start(0, 0, "", QHostAddress::LocalHost));
+    EXPECT_GT(server.port(), 0);
+
+    QUrl url(QString("http://127.0.0.1:%1/health").arg(server.port()));
+    EXPECT_EQ(http_status(url), 200);
+
     server.stop();
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHostAddress>
 #include <QHttpServer>
 #include <QTimer>
 #include <QWebSocket>
@@ -23,7 +24,15 @@ class ApiServer : public QObject {
     ApiServer(void* conn, QObject* parent = nullptr);
     ~ApiServer() override;
 
-    bool start(quint16 httpPort = 8080, quint16 wsPort = 0, const std::string& mqttBroker = "");
+    // `bindAddress` restricts which network interfaces the HTTP/WS servers
+    // accept connections on (defaults to all interfaces for backward
+    // compatibility). `apiKey`, when non-empty, requires every `/api/*`
+    // request to carry a matching `X-Api-Key` header and every WebSocket
+    // connection to carry a matching `api_key` query parameter; `/health`
+    // always stays open for liveness checks. An empty key (the default)
+    // disables auth entirely so local development needs no extra setup.
+    bool start(quint16 httpPort = 8080, quint16 wsPort = 0, const std::string& mqttBroker = "",
+               const QHostAddress& bindAddress = QHostAddress::Any, const std::string& apiKey = "");
     quint16 port() const { return port_; }
     quint16 wsPort() const { return wsPort_; }
     void stop();
@@ -37,9 +46,12 @@ class ApiServer : public QObject {
     void on_new_websocket_connection();
     void connect_mqtt(const std::string& broker);
     void seed_default_device_locations();
+    bool is_authorized(const QHttpServerRequest& req) const;
     void* conn_;
     quint16 port_ = 0;
     quint16 wsPort_ = 0;
+    QHostAddress bindAddress_ = QHostAddress::Any;
+    std::string apiKey_;
     QHttpServer server_;
     std::unique_ptr<QWebSocketServer> wsServer_;
     std::unique_ptr<mqtt::async_client> mqtt_;
