@@ -85,3 +85,8 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# AppImage packaging (scripts/package-appimage.sh) — downloaded tools and
+# generated output, not stored in repo
+/.tools/
+/dist/

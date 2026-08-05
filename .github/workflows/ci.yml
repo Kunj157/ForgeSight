@@ -43,7 +43,8 @@ jobs:
             qml6-module-qtcharts \
             qml6-module-qtquick-window \
             qml6-module-qtqml \
-            qml6-module-qtqml-workerscript
+            qml6-module-qtqml-workerscript \
+            xvfb
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Debug
@@ -57,6 +58,22 @@ jobs:
           QML2_IMPORT_PATH: /usr/lib/x86_64-linux-gnu/qt6/qml
           QT_QPA_PLATFORM: offscreen
           FORGESIGHT_TEST_DB: "host=127.0.0.1 port=5432 dbname=forgesight_test user=postgres password=postgres"
+
+      # Reuses this job's own build/ output rather than a separate job, since
+      # that avoids re-installing the whole Qt package list from scratch.
+      # GitHub-hosted runners don't have a working /dev/fuse, so this also
+      # exercises the script's extract+run fallback as a side effect.
+      - name: Package AppImage
+        run: ./scripts/package-appimage.sh
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+
+      - name: Smoke-test AppImage
+        run: |
+          Xvfb :99 -screen 0 1280x800x24 &
+          sleep 2
+          DISPLAY=:99 APPIMAGE_EXTRACT_AND_RUN=1 timeout 10 ./dist/ForgeSight-x86_64.AppImage 2>&1 | tee /tmp/appimage.log || true
+          grep -q "window ready" /tmp/appimage.log
 
   asan:
     runs-on: ubuntu-24.04

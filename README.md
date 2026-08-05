@@ -43,6 +43,19 @@ Stop services:
 ./scripts/dev-up.sh stop
 ```
 
+## Package the desktop app (AppImage)
+
+`scripts/package-appimage.sh` bundles the built `factory-pulse` binary, its Qt libraries, and the QML modules it imports (QtQuick, QtQuick.Controls, QtCharts, ...) into a single portable `.AppImage` — no Qt install needed on the target machine. It downloads [`linuxdeploy`](https://github.com/linuxdeploy/linuxdeploy) and its Qt plugin into `.tools/` on first run (not committed; gitignored, like `/dist/` where the output goes).
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+./scripts/package-appimage.sh
+./dist/ForgeSight-x86_64.AppImage
+```
+
+The app's own QML files are compiled directly into the binary via `qt_add_qml_module` (see `ui/app/CMakeLists.txt`), so only Qt's own QML plugins need bundling — `QML_SOURCES_PATHS` is set before invoking `linuxdeploy-plugin-qt` so its import scanner can find exactly the ones this app actually uses. If `patchelf` (used by `linuxdeploy` to rewrite RPATHs) isn't already installed, the script installs it via `pip install --user` rather than assuming `apt`/root access.
+
 ## Run the backend via Docker Compose
 
 An alternative to the native setup above: Postgres, Mosquitto, ingestion, alarm-engine, and the API all run in containers, so you don't need PostgreSQL/Mosquitto/Qt installed on the host at all. Only Docker is required.
