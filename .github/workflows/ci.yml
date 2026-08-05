@@ -58,6 +58,68 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           FORGESIGHT_TEST_DB: "host=127.0.0.1 port=5432 dbname=forgesight_test user=postgres password=postgres"
 
+  asan:
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: forgesight_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d forgesight_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake g++ pkg-config \
+            nlohmann-json3-dev libspdlog-dev libpq-dev \
+            libpaho-mqtt-dev libpaho-mqttpp-dev \
+            libqt6sql6-sqlite \
+            qt6-base-dev qt6-declarative-dev qt6-charts-dev \
+            qt6-httpserver-dev qt6-websockets-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtcharts \
+            qml6-module-qtquick-window \
+            qml6-module-qtqml \
+            qml6-module-qtqml-workerscript
+
+      # Same matrix as `build`, plus AddressSanitizer. Configured before any
+      # add_subdirectory() in the root CMakeLists.txt so every target — app
+      # code, tests, and FetchContent-populated googletest alike — is built
+      # with consistent instrumentation.
+      - name: Configure
+        run: cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug -DFORGESIGHT_ENABLE_ASAN=ON
+
+      - name: Build
+        run: cmake --build build-asan --parallel
+
+      # Sequential on purpose: several DB-backed tests share a hardcoded
+      # 'svc-test' device_id row in the same Postgres instance, so running
+      # them concurrently (ctest -j) causes cross-test data races that are
+      # unrelated to actual memory-safety bugs.
+      - name: Test under ASan
+        run: ctest --test-dir build-asan --output-on-failure
+        env:
+          QML2_IMPORT_PATH: /usr/lib/x86_64-linux-gnu/qt6/qml
+          QT_QPA_PLATFORM: offscreen
+          FORGESIGHT_TEST_DB: "host=127.0.0.1 port=5432 dbname=forgesight_test user=postgres password=postgres"
+          ASAN_OPTIONS: detect_leaks=1
+
   lint:
     runs-on: ubuntu-24.04
     steps:

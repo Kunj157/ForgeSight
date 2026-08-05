@@ -7,6 +7,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 enable_testing()
 
+# Placed before any add_subdirectory() so the flags apply uniformly to every
+# target, including FetchContent-populated googletest — mixing sanitized and
+# unsanitized code in the same process is a common source of confusing
+# ASan/ODR false positives.
+option(FORGESIGHT_ENABLE_ASAN "Build with AddressSanitizer" OFF)
+if(FORGESIGHT_ENABLE_ASAN)
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address)
+endif()
+
 find_package(nlohmann_json REQUIRED)
 
 add_subdirectory(ingestion)

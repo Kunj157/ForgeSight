@@ -26,16 +26,21 @@ void* connect_db() {
 
 void seed_reading(void* conn, const std::string& device, const std::string& sensor, double value,
                   const std::string& ts) {
-    const char* params[4] = {device.c_str(), sensor.c_str(), std::to_string(value).c_str(),
-                             ts.c_str()};
+    std::string value_str = std::to_string(value);
+    const char* params[4] = {device.c_str(), sensor.c_str(), value_str.c_str(), ts.c_str()};
     int lengths[4] = {static_cast<int>(device.size()), static_cast<int>(sensor.size()),
-                      static_cast<int>(std::to_string(value).size()), static_cast<int>(ts.size())};
+                      static_cast<int>(value_str.size()), static_cast<int>(ts.size())};
     int formats[4] = {0, 0, 0, 0};
     auto* res =
         PQexecParams(static_cast<PGconn*>(conn),
                      "INSERT INTO readings (device_id, sensor, value, unit, timestamp, anomaly) "
                      "VALUES ($1, $2, $3, '°C', $4, false)",
                      4, nullptr, params, lengths, formats, 0);
+    PQclear(res);
+}
+
+void exec_and_clear(void* conn, const char* sql) {
+    auto* res = PQexec(static_cast<PGconn*>(conn), sql);
     PQclear(res);
 }
 
@@ -65,11 +70,9 @@ class DeviceServiceTest : public ::testing::Test {
 
     void TearDown() override {
         if (conn) {
-            PQexec(static_cast<PGconn*>(conn), "DELETE FROM readings WHERE device_id = 'svc-test'");
-            PQexec(static_cast<PGconn*>(conn),
-                   "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
-            PQexec(static_cast<PGconn*>(conn),
-                   "DELETE FROM device_metadata WHERE device_id = 'svc-test'");
+            exec_and_clear(conn, "DELETE FROM readings WHERE device_id = 'svc-test'");
+            exec_and_clear(conn, "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
+            exec_and_clear(conn, "DELETE FROM device_metadata WHERE device_id = 'svc-test'");
             PQfinish(static_cast<PGconn*>(conn));
         }
     }
@@ -228,8 +231,7 @@ class RuleServiceTest : public ::testing::Test {
 
     void TearDown() override {
         if (conn) {
-            PQexec(static_cast<PGconn*>(conn),
-                   "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
+            exec_and_clear(conn, "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
             PQfinish(static_cast<PGconn*>(conn));
         }
     }
