@@ -7,6 +7,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD="${FORGESIGHT_BUILD:-$ROOT/build}"
 LOG_DIR="${FORGESIGHT_LOG_DIR:-/tmp/forgesight-logs}"
 DB_CONN="${FORGESIGHT_DB:-dbname=forgesight}"
+BIND="${FORGESIGHT_BIND:-0.0.0.0}"
+API_KEY="${FORGESIGHT_API_KEY:-}"
 PID_FILE="$LOG_DIR/pids"
 
 mkdir -p "$LOG_DIR"
@@ -40,11 +42,16 @@ fi
 stop_stack
 : > "$PID_FILE"
 
-echo "DB:    $DB_CONN"
-echo "Logs:  $LOG_DIR"
+echo "DB:      $DB_CONN"
+echo "Bind:    $BIND"
+echo "API key: $([[ -n "$API_KEY" ]] && echo "enabled" || echo "disabled (local dev default)")"
+echo "Logs:    $LOG_DIR"
 echo "Starting services…"
 
-"$BUILD/api/api" --database "$DB_CONN" --port 8080 --ws-port 8081 \
+api_args=(--database "$DB_CONN" --port 8080 --ws-port 8081 --bind "$BIND")
+[[ -n "$API_KEY" ]] && api_args+=(--api-key "$API_KEY")
+
+"$BUILD/api/api" "${api_args[@]}" \
   >"$LOG_DIR/api.log" 2>&1 &
 echo $! >> "$PID_FILE"
 
@@ -75,8 +82,9 @@ echo
 echo "Tail logs:  tail -f $LOG_DIR/*.log"
 echo "Stop:       $0 stop"
 
-# Quick health check
-if curl -sf "http://127.0.0.1:8080/api/devices" >/dev/null; then
+# /health always stays open even when --api-key is set, so it's a safe,
+# auth-independent liveness check.
+if curl -sf "http://127.0.0.1:8080/health" >/dev/null; then
   echo "API health: OK"
 else
   echo "API health: FAIL — check $LOG_DIR/api.log" >&2

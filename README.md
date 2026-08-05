@@ -36,12 +36,34 @@ Optional env overrides:
 | `FORGESIGHT_DB` | `dbname=forgesight` |
 | `FORGESIGHT_API` | `http://127.0.0.1:8080` |
 | `FORGESIGHT_WS` | `ws://127.0.0.1:8081` |
+| `FORGESIGHT_BIND` | `0.0.0.0` — interface the `api` binary listens on |
+| `FORGESIGHT_API_KEY` | unset — see [Security](#security) below |
 
 Stop services:
 
 ```bash
 ./scripts/dev-up.sh stop
 ```
+
+## Security
+
+The `api` binary is unauthenticated and bound to all interfaces (`0.0.0.0`) by default so local development needs zero extra setup. **Neither is safe for a deployment reachable outside your own machine** — enable both before exposing it:
+
+- **`--bind <address>` / `FORGESIGHT_BIND`** — restrict the HTTP/WS listeners to one interface, e.g. `127.0.0.1` to only accept connections proxied from the same host, or a private LAN IP.
+- **`--api-key <key>` / `FORGESIGHT_API_KEY`** — require a matching `X-Api-Key` header on every `/api/*` request and a matching `?api_key=` query parameter on every WebSocket connection. `/health` always stays open (liveness checks shouldn't need credentials). Generate one with `openssl rand -hex 32`.
+
+```bash
+export FORGESIGHT_API_KEY="$(openssl rand -hex 32)"
+./build/api/api --database "dbname=forgesight" --bind 0.0.0.0 --api-key "$FORGESIGHT_API_KEY"
+```
+
+The desktop app reads the same `FORGESIGHT_API_KEY` env var (plus `FORGESIGHT_ALLOW_INSECURE_TLS=1`, only needed if you terminate `wss://` with a self-signed cert and explicitly want to bypass validation — it defaults to off, so a bad/self-signed cert fails closed instead of connecting anyway) and attaches it automatically:
+
+```bash
+FORGESIGHT_API_KEY="$FORGESIGHT_API_KEY" ./build/ui/app/factory-pulse
+```
+
+`scripts/dev-up.sh` forwards both `FORGESIGHT_API_KEY` and `FORGESIGHT_BIND` from your shell if set. `docker-compose.yml` forwards `FORGESIGHT_API_KEY` but deliberately keeps the `api` container bound to `0.0.0.0` — Docker's port mapping forwards to the container's network namespace, not loopback, so restricting the bind address there would make the published ports unreachable from the host. Both leave auth disabled by default, matching local-dev defaults.
 
 ## Package the desktop app (AppImage)
 
@@ -61,8 +83,10 @@ The app's own QML files are compiled directly into the binary via `qt_add_qml_mo
 An alternative to the native setup above: Postgres, Mosquitto, ingestion, alarm-engine, and the API all run in containers, so you don't need PostgreSQL/Mosquitto/Qt installed on the host at all. Only Docker is required.
 
 ```bash
-docker compose up --build
+FORGESIGHT_API_KEY="$(openssl rand -hex 32)" docker compose up --build   # or omit for no-auth local use
 ```
+
+See [Security](#security) for what `FORGESIGHT_API_KEY` does and why the container stays bound to `0.0.0.0`.
 
 `ingestion`, `alarm-engine`, and `api` all run the *same* built image (`forgesight-backend:local`, from `docker/Dockerfile.backend`) with a different `entrypoint:` per service — only the `ingestion` service declares `build:`, so this is a single image build no matter how compose is invoked. (An earlier version of this file gave each service its own build target sharing a `builder` stage; `docker compose build`'s default parallel mode doesn't dedupe a shared stage across targets, so it raced 3 copies of the heaviest step — installing the Qt toolchain — and was enough concurrent disk/memory pressure to freeze a real dev machine. See #28.)
 
