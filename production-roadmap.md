@@ -1,9 +1,9 @@
 # ForgeSight — Production Roadmap & Session Handoff
 
-**Last updated:** 2026-08-04 (Phase 8 item 14 **done**: PR #27 merged, crash fix PR #29 merged)  
+**Last updated:** 2026-08-05 (Phase 8 **fully done** — items 15-17 closed via PRs #31, #33, #35)  
 **Branch:** `dev`  
-**Open PRs:** none — #13, #15, #17, #20, #21, #24, #27, #29 all **MERGED** into `dev`  
-**Open issues:** none from this roadmap's P0/P1/P2 list (#10 docs-sync issue still open, tracks this file itself; #28 closed by #29)  
+**Open PRs:** none — #13, #15, #17, #20, #21, #24, #27, #29, #31, #33, #35 all **MERGED** into `dev`  
+**Open issues:** none from this roadmap's P0-P3 list (#10 docs-sync issue still open, tracks this file itself; #28 closed by #29)  
 
 Use this file as the source of truth for “what’s done / what’s next” in a new chat session.
 
@@ -15,10 +15,10 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 |------|--------|
 | Local live demo (sim → MQTT → ingest → DB → API/WS → UI) | **Working** via `scripts/dev-up.sh` |
 | Phases 0–7 (MVP core + offline mode) | **Done** — offline mode (Phase 7) closed 2026-07-31 |
-| Phase 8 (packaging, load) | **Started** — Docker/compose for backend services done (PR #27, crash fix PR #29); load script, ASan CI, AppImage still open |
-| Phase 9 (release) | **Not started** |
-| CI / `dev` | Green — PRs #13, #15, #17, #20, #21, #24, #27, #29 merged |
-| Production-grade | **Not yet** — P1+P2 fully done; Phase 8 in progress (item 14/4 done) |
+| Phase 8 (packaging, load) | **Done** — Docker/compose (PR #27/#29), ASan CI (PR #31), load test + measured numbers (PR #33), AppImage packaging (PR #35) |
+| Phase 9 (release) | **Not started — next up** |
+| CI / `dev` | Green — PRs #13, #15, #17, #20, #21, #24, #27, #29, #31, #33, #35 merged; jobs: `build` (incl. AppImage package+smoke-test), `asan`, `lint`, `simulators-test`, `docker` |
+| Production-grade | **Not yet** — P1+P2+P3(Phase 8) fully done; Phase 9 (release) not started |
 
 **How to run today**
 
@@ -44,7 +44,7 @@ Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`.
 | **5** | Dashboard core | Done | Plant→floor→device tree in `DeviceTreePanel.qml`, closed #5 via PR #21 (2026-07-31) |
 | **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; weak pan still open (nice-to-have) |
 | **7** | Offline mode | Done | `OfflineCache` (SQLite) restores last-known state on cold start, persists every reading live, queues acks while offline and flushes on reconnect; staleness-aware offline indicator. Closed #23 via PR #24 (2026-07-31) |
-| **8** | Load test + packaging | Partial | Docker/compose for backend services done (PR #27); no AppImage, no measured load numbers, no ASan CI job |
+| **8** | Load test + packaging | Done | Docker/compose (PR #27/#29); ASan CI job with zero-leak goal, catches real bugs (PR #31); load script + measured latency/CPU numbers in README (PR #33); AppImage packaging + CI smoke-test (PR #35) |
 | **9** | First release | **Missing** | `main` empty; no `release.yml` / `deploy.yml` |
 
 Stretch (Kafka, gRPC, camera, Prometheus, plugins): **do not start** until Phases 7–9 close.
@@ -120,12 +120,12 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 12. Offline banner + last-updated timestamp (distinct from WS “Disconnected”). ✅ — `root.offline` = `!wsClient.connected || stale` (10s no-data threshold), sidebar "Updated Xs ago" caption + pending-sync badge, top-bar LIVE/OFFLINE chip driven by the same signal.
 13. Unit tests: stale detection, reconnect sync. ✅ — 13 `OfflineCacheTest` + 2 `DeviceModelTest` cases (157/157 total passing).
 
-### P3 — Phase 8 Packaging & load
+### P3 — Phase 8 Packaging & load ✅ (all 4 items done)
 
 14. Dockerfiles + compose for Postgres, Mosquitto, ingestion, api, alarm-engine. ✅ (PR [#27](https://github.com/Kunj157/ForgeSight/pull/27), issue #26; hardened by PR [#29](https://github.com/Kunj157/ForgeSight/pull/29), issue #28) — `docker/Dockerfile.backend` builds one shared image for all 3 C++ services (originally 3 per-service targets, collapsed to 1 after #28); `docker-compose.yml` wires it + Postgres/Mosquitto together; `docker` CI job builds the image on every PR.
-15. Load script: scale simulator device count; record **measured** latency/CPU in README.  
-16. ASan (and optional Valgrind) CI job; zero-leak goal.  
-17. Package Qt app (AppImage or similar).
+15. Load script: scale simulator device count; record **measured** latency/CPU in README. ✅ (PR [#33](https://github.com/Kunj157/ForgeSight/pull/33), issue #32) — `scripts/load_test.py` + `simulators/loadgen.py` (TDD'd pure helpers); measured 100/300/600 synthetic devices in the README, latency stays under a second at every scale tested on an 8-core dev laptop.
+16. ASan (and optional Valgrind) CI job; zero-leak goal. ✅ (PR [#31](https://github.com/Kunj157/ForgeSight/pull/31), issue #30) — `FORGESIGHT_ENABLE_ASAN` CMake option + `asan` CI job; found and fixed 2 real bugs on the first run (see progress log).
+17. Package Qt app (AppImage or similar). ✅ (PR [#35](https://github.com/Kunj157/ForgeSight/pull/35), issue #34) — `scripts/package-appimage.sh` (linuxdeploy + linuxdeploy-plugin-qt), verified locally under Xvfb and as a CI smoke-test in the `build` job.
 
 ### P4 — Phase 9 Release
 
@@ -146,15 +146,16 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ```text
 1. Read this file + implementation-plan.md
-2. Phase 8 item 14 (Docker/compose) is done — continue P3, items 15-17:
-   a load script that scales simulator device count with measured
-   latency/CPU numbers written into the README, an ASan (+ optional
-   Valgrind) CI job with a zero-leak goal, and packaging the Qt app
-   (AppImage or similar). Any of the three can go first; they're independent.
+2. Phase 8 is fully done. Move to Phase 9 (release) — items 18-21:
+   merge the green stack dev → main, add release.yml (tag + Docker
+   images + AppImage → GitHub Release), an optional thin deploy.yml
+   for the backend, and a security baseline (bind address config,
+   at least an API key or LAN-only auth, no ignoreSslErrors in
+   release builds).
 3. Branch from dev: feature/<n>-…
 4. TDD strictly (AGENTS.md)
 5. Small sequential commits; PR → dev
-6. Once Phase 8 closes, move to Phase 9 (release)
+6. Once dev is green and stable, PR dev → main and tag v1.0.0
 ```
 
 ### Do not
@@ -183,14 +184,14 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ## Definition of “production-grade MVP” (exit criteria)
 
-- [ ] CI green on `dev` (build, lint, unit + DB integration tests)  
-- [ ] Full stack reproducible via compose or `dev-up.sh`  
-- [ ] Live tiles + alarms + history + ack persist across restart  
-- [ ] Rule CRUD via API (and ideally minimal UI)  
-- [x] Offline cache + queued ack flush  
-- [ ] Dockerized backends (done) + documented load numbers (still open)  
-- [ ] ASan clean in CI  
-- [ ] Tagged `v1.0.0` on `main` with release artifacts  
+- [x] CI green on `dev` (build, lint, unit + DB integration tests, asan, simulators-test, docker)
+- [x] Full stack reproducible via compose or `dev-up.sh`
+- [x] Live tiles + alarms + history + ack persist across restart
+- [x] Rule CRUD via API (and ideally minimal UI)
+- [x] Offline cache + queued ack flush
+- [x] Dockerized backends + documented load numbers (measured at 100/300/600 devices)
+- [x] ASan clean in CI
+- [ ] Tagged `v1.0.0` on `main` with release artifacts (Phase 9, not started)
 
 When all boxes above are checked, stretch phases may begin.
 
@@ -237,3 +238,16 @@ When all boxes above are checked, stretch phases may begin.
   - Per explicit instruction, no `docker` command was run locally at any point investigating or fixing either #28 or the original #27 CI failures — every round of debugging (missing `make`, missing `git`, the parallel-bake race, and this crash) was diagnosed purely by reading CI job logs after pushing, plus `dmesg`/`journalctl` for the crash evidence itself. The `docker` CI job (GitHub-hosted runner, not the user's machine) remains the only thing that has ever actually executed `docker build`/`docker compose build` for this project.
   - Minor self-inflicted blemish: one commit message on the `feature/28-single-docker-image` branch got mangled — used unquoted backticks (and one `$(nproc)`) inside a double-quoted `MSG="..."` shell variable instead of a `<<'EOF'` heredoc, so bash ran them as command substitution before `git commit-tree` ever saw the text. Left as-is per the "don't amend already-pushed commits without being asked" rule; the PR description has the accurate, complete writeup. **Lesson: always use a quoted heredoc (`<<'EOF'`) for commit messages that contain backticks, never a plain double-quoted variable.**
   - Phase 8 item 14 is now genuinely done (previously "done" but with a live footgun in it). Still open: items 15-17 (load script, ASan CI, AppImage packaging).
+- **2026-08-05:** Closed the remaining three Phase 8 items in one session — **Phase 8 is now fully done.** All three were built and merged natively on this machine (not Docker), which was a deliberate contrast with the previous session's Docker-only-via-CI approach: normal `cmake --build`/`ctest`/Python runs here don't carry the resource-storm risk that a parallel `docker compose build` did, so there was no reason to avoid running them locally.
+  - **#30 → PR #31 (ASan CI job, item 16):** Added a `FORGESIGHT_ENABLE_ASAN` CMake option (set before any `add_subdirectory` so FetchContent's googletest gets instrumented consistently with app code) and an `asan` CI job mirroring `build`'s dependency matrix. Ran the full 157-test suite locally under ASan *before* touching CI and it immediately paid off — found two real, unrelated bugs in `tests/api/test_services.cpp`:
+    1. `RuleServiceTest`/`DeviceServiceTest::TearDown()` called `PQexec()` for cleanup queries without `PQclear()`-ing the result — a `PGresult` leak on every single test run. Fixed with a shared `exec_and_clear()` helper.
+    2. `seed_reading()` took `.c_str()` of a temporary `std::to_string(value)` and stored the pointer in a `params[]` array used later — classic dangling-pointer-to-temporary bug, flagged by ASan as `stack-use-after-scope`. Fixed by binding the string to a named local first.
+    - Also noticed `ctest -j2` produces *unrelated* flaky failures (two DB tests race over a shared hardcoded `'svc-test'` device_id row) — not an ASan issue, just confirms why the existing `build` job already runs ctest without `-j`; kept the new job sequential too.
+  - **#32 → PR #33 (load script, item 15):** `scripts/load_test.py` scales the simulator to N synthetic `load-XXXX`-prefixed devices (never collides with demo devices) against an already-running stack, then reports end-to-end latency computed entirely inside Postgres (`created_at - timestamp`, no cross-process clock skew) and CPU% of `ingestion`/`alarm-engine`/`api` sampled from `/proc/<pid>/stat` (no new dependency — deliberately not `psutil`, to keep the simulator's dependency footprint at just `paho-mqtt`+`PyYAML`). The reusable pure logic (device/config generation, `/proc/stat` field parsing, cpu% math) lives in `simulators/loadgen.py` and was written test-first (`simulators/tests/test_loadgen.py`, red before the module existed, green after) — the orchestration script itself was verified by actually running it against the live local stack, same philosophy as `scripts/dev-up.sh`.
+    - Ran it at 100/300/600 devices for 30s each; recorded the numbers in the README. Latency stays comfortably under a second at every scale; `api`'s CPU cost scales with device count (its `ws_broadcaster` polls latest readings for *all* devices regardless of connected clients — worth knowing if this ever needs to scale much further) while `ingestion` scales with message volume as expected.
+    - Also noticed nothing in CI ever ran the Python `simulators/tests/` pytest suite (pre-existing gap, not something this session introduced, but directly relevant since it just added new tests there) — added a small `simulators-test` CI job for it as a follow-up commit on the same PR.
+    - Hit one local-environment quirk while getting the first measured numbers: this machine's dev `readings` table predated the `created_at` column (added to `ensure_table()`'s DDL sometime after this table was first created locally, and `CREATE TABLE IF NOT EXISTS` doesn't retroactively add columns) — a one-time `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` fixed the local DB; not a code bug, CI's Postgres service always starts fresh so it never hit this.
+  - **#34 → PR #35 (AppImage packaging, item 17):** `scripts/package-appimage.sh` wraps `linuxdeploy` + `linuxdeploy-plugin-qt` (downloaded into gitignored `.tools/` on first run, output to gitignored `dist/` — no binaries committed). Because `ui/app/CMakeLists.txt` already uses `qt_add_qml_module`, the app's own QML files are compiled directly into the binary; only Qt's own QML plugins (QtQuick, QtQuick.Controls, QtCharts, ...) needed bundling, and setting `QML_SOURCES_PATHS` before invoking the plugin let its import scanner find exactly those instead of guessing from linked libraries. `patchelf` (needed by `linuxdeploy` for RPATH rewriting) isn't assumed to be preinstalled — installed via `pip install --user` if missing, since the script shouldn't assume `apt`/root access.
+    - Verified end-to-end locally: built a Debug binary, ran the script, then actually launched the resulting `.AppImage` against a real Xvfb X display (not just `--version`/static inspection) — it reached "window ready" using only the bundled Qt/xcb libs, no host Qt install involved. Added the same sequence (package + Xvfb smoke-test grepping for "window ready") as extra steps in the existing `build` CI job rather than a new job, since that reuses its already-built output instead of re-installing the whole Qt package list from scratch; this also exercises `APPIMAGE_EXTRACT_AND_RUN=1` as a real regression check, since GitHub-hosted runners don't have a working `/dev/fuse` for a normal AppImage mount.
+  - Recurring repo quirk confirmed again: `gh pr merge --merge` with a "Closes #n" trailer in the merge commit did **not** auto-close any of #30/#32/#34 — closed all three manually after merging, same as every previous session. Worth just expecting this every time rather than treating it as a one-off.
+  - **Phase 8 is done. Next real gap: Phase 9 (release)** — `main` is still empty, no `release.yml`/`deploy.yml`, no security baseline (bind address config, API key/LAN auth, `ignoreSslErrors` audit for release builds).
