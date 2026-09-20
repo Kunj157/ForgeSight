@@ -522,9 +522,11 @@ Rectangle {
         anomalySeries.clear()
         statusText.text = "Loading…"
 
-        var device = deviceModel.data(
-            deviceModel.index(deviceCombo.currentIndex, 0),
-            deviceModel.DeviceIdRole)
+        // The combo's textRole is already "deviceId", so currentText is the
+        // selected device id. (Don't resolve it via deviceModel.DeviceIdRole —
+        // that role enum isn't Q_ENUM-exposed to QML, so it reads back as
+        // undefined and the fetch goes out with an empty device id.)
+        var device = deviceCombo.currentText
         var sensor = sensorCombo.currentText
 
         apiClient.fetchHistory(device, sensor, root.sinceIso)
