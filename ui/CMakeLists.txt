@@ -12,6 +12,7 @@ add_library(ui_lib STATIC
     src/api_client.cpp
     src/offline_cache.cpp
     src/time_format.cpp
+    src/series_stats.cpp
     include/ui/device_model.h
     include/ui/alarm_model.h
     include/ui/ws_client.h
@@ -21,6 +22,7 @@ add_library(ui_lib STATIC
     include/ui/api_client.h
     include/ui/offline_cache.h
     include/ui/time_format.h
+    include/ui/series_stats.h
 )
 
 target_include_directories(ui_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
