@@ -102,6 +102,27 @@ TEST_F(DbWriterTest, CreatesIndexOnDeviceSensorTimestamp) {
     EXPECT_TRUE(index_exists(conn_str, "idx_readings_device_sensor_timestamp"));
 }
 
+TEST_F(DbWriterTest, CreatesLatestPerDeviceIndex) {
+    // (device_id, sensor, timestamp DESC) lets the dashboard's "latest reading
+    // per device+sensor" DISTINCT ON use an index scan instead of a full-table
+    // Seq Scan + on-disk Sort.
+    DbConfig cfg{conn_str};
+    DbWriter w(cfg);
+    ASSERT_TRUE(w.is_connected());
+
+    EXPECT_TRUE(index_exists(conn_str, "idx_readings_latest"));
+}
+
+TEST_F(DbWriterTest, CreatesTimestampIndex) {
+    // A leading-timestamp index lets the WS poll's `WHERE timestamp >= $1`
+    // query use an index instead of scanning the whole table every 2s.
+    DbConfig cfg{conn_str};
+    DbWriter w(cfg);
+    ASSERT_TRUE(w.is_connected());
+
+    EXPECT_TRUE(index_exists(conn_str, "idx_readings_timestamp"));
+}
+
 TEST_F(DbWriterTest, BadConnectionFailsGracefully) {
     DbConfig cfg{"host=invalid-host-that-does-not-exist dbname=nope"};
     DbWriter w(cfg);

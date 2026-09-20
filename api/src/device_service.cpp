@@ -71,13 +71,25 @@ std::vector<DeviceInfo> DeviceService::list_devices() const {
     // Latest reading per device+sensor so the dashboard can seed tiles;
     // left-joined against device_metadata so devices without an assigned
     // plant/floor still show up (grouped under "Unassigned").
+    //
+    // The DISTINCT ON runs on `readings` alone (the join is applied afterwards
+    // to the handful of resulting rows). Kept this way — rather than joining
+    // before the distinct — so the planner can satisfy
+    // `ORDER BY device_id, sensor, timestamp DESC` with an index scan on
+    // idx_readings_latest instead of a full-table Seq Scan + on-disk Sort.
+    // The `::text` cast stays in the projection only; casting inside ORDER BY
+    // would sort by text and defeat the index.
     auto* res = PQexec(static_cast<PGconn*>(conn_),
-                       "SELECT DISTINCT ON (r.device_id, r.sensor) "
-                       "r.device_id, r.sensor, r.value, r.unit, r.timestamp::text, r.anomaly, "
+                       "SELECT l.device_id, l.sensor, l.value, l.unit, l.timestamp::text, "
+                       "l.anomaly, "
                        "COALESCE(m.plant, 'Unassigned'), COALESCE(m.floor, 'Unassigned') "
-                       "FROM readings r "
-                       "LEFT JOIN device_metadata m ON m.device_id = r.device_id "
-                       "ORDER BY r.device_id, r.sensor, r.timestamp DESC");
+                       "FROM ("
+                       "  SELECT DISTINCT ON (device_id, sensor) "
+                       "         device_id, sensor, value, unit, timestamp, anomaly "
+                       "  FROM readings "
+                       "  ORDER BY device_id, sensor, timestamp DESC"
+                       ") l "
+                       "LEFT JOIN device_metadata m ON m.device_id = l.device_id");
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
         PQclear(res);

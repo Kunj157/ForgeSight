@@ -1,9 +1,10 @@
 # ForgeSight — Production Roadmap & Session Handoff
 
-**Last updated:** 2026-08-05 (Phase 8 **fully done** — items 15-17 closed via PRs #31, #33, #35)  
-**Branch:** `dev`  
-**Open PRs:** none — #13, #15, #17, #20, #21, #24, #27, #29, #31, #33, #35 all **MERGED** into `dev`  
-**Open issues:** none from this roadmap's P0-P3 list (#10 docs-sync issue still open, tracks this file itself; #28 closed by #29)  
+**Last updated:** 2026-08-05 (Phase 9 **fully done** — items 18-21 closed via PRs #37, #39, #41, #42; **`v1.0.0` tagged and released**)  
+**Branch:** `dev` (released to `main`, tag `v1.0.0`)  
+**Open PRs:** none — #13, #15, #17, #20, #21, #24, #27, #29, #31, #33, #35, #37, #39, #41, #42 all **MERGED**  
+**Open issues:** none from this roadmap's P0-P4 list (#10 docs-sync issue still open, tracks this file itself; #28 closed by #29)  
+**Release:** [`v1.0.0`](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0) — AppImage + `ghcr.io/kunj157/forgesight-backend:v1.0.0`/`:latest`, published automatically by `release.yml` on tag push.  
 
 Use this file as the source of truth for “what’s done / what’s next” in a new chat session.
 
@@ -16,9 +17,9 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 | Local live demo (sim → MQTT → ingest → DB → API/WS → UI) | **Working** via `scripts/dev-up.sh` |
 | Phases 0–7 (MVP core + offline mode) | **Done** — offline mode (Phase 7) closed 2026-07-31 |
 | Phase 8 (packaging, load) | **Done** — Docker/compose (PR #27/#29), ASan CI (PR #31), load test + measured numbers (PR #33), AppImage packaging (PR #35) |
-| Phase 9 (release) | **Not started — next up** |
-| CI / `dev` | Green — PRs #13, #15, #17, #20, #21, #24, #27, #29, #31, #33, #35 merged; jobs: `build` (incl. AppImage package+smoke-test), `asan`, `lint`, `simulators-test`, `docker` |
-| Production-grade | **Not yet** — P1+P2+P3(Phase 8) fully done; Phase 9 (release) not started |
+| Phase 9 (release) | **Done** — security baseline (PR #37), `release.yml` (PR #39), `deploy.yml` template (PR #41), `dev`→`main` + `v1.0.0` tag (PR #42) |
+| CI / `dev` | Green — PRs #13, #15, #17, #20, #21, #24, #27, #29, #31, #33, #35, #37, #39, #41 merged; jobs: `build` (incl. AppImage package+smoke-test), `asan`, `lint`, `simulators-test`, `docker` |
+| Production-grade | **Yes — v1.0.0 released.** All phases 0-9 (P0-P4) done; only stretch/nice-to-have items remain |
 
 **How to run today**
 
@@ -28,7 +29,7 @@ Use this file as the source of truth for “what’s done / what’s next” in 
 # stop: ./scripts/dev-up.sh stop
 ```
 
-Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`.
+Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`, `FORGESIGHT_BIND`, `FORGESIGHT_API_KEY` (optional, see README "Security"), `FORGESIGHT_ALLOW_INSECURE_TLS` (opt-in only).
 
 ---
 
@@ -40,14 +41,14 @@ Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`.
 | **1** | Simulators | Partial | Works; no NASA C-MAPSS/SECOM replay yet |
 | **2** | Ingestion | Done | Periodic flush + mutex added |
 | **3** | Alarm engine | Done | DB poll + `--seed` |
-| **4** | REST/WS API | Partial | Rule CRUD HTTP done (PR #9); no auth/TLS |
+| **4** | REST/WS API | Done | Rule CRUD HTTP done (PR #9); optional API key auth + configurable bind address added in Phase 9 (PR #37) |
 | **5** | Dashboard core | Done | Plant→floor→device tree in `DeviceTreePanel.qml`, closed #5 via PR #21 (2026-07-31) |
 | **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; weak pan still open (nice-to-have) |
 | **7** | Offline mode | Done | `OfflineCache` (SQLite) restores last-known state on cold start, persists every reading live, queues acks while offline and flushes on reconnect; staleness-aware offline indicator. Closed #23 via PR #24 (2026-07-31) |
 | **8** | Load test + packaging | Done | Docker/compose (PR #27/#29); ASan CI job with zero-leak goal, catches real bugs (PR #31); load script + measured latency/CPU numbers in README (PR #33); AppImage packaging + CI smoke-test (PR #35) |
-| **9** | First release | **Missing** | `main` empty; no `release.yml` / `deploy.yml` |
+| **9** | First release | Done | Security baseline (API key + bind config + TLS-bypass audit, PR #37), `release.yml` (PR #39), `deploy.yml` template (PR #41), `dev`→`main` merge + `v1.0.0` tag (PR #42). See [release](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0). |
 
-Stretch (Kafka, gRPC, camera, Prometheus, plugins): **do not start** until Phases 7–9 close.
+**All phases 0-9 are done. Stretch (Kafka, gRPC, camera, Prometheus, plugins) may now begin** if desired — see the "Nice-to-have" list below for candidates.
 
 ---
 
@@ -127,12 +128,12 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 16. ASan (and optional Valgrind) CI job; zero-leak goal. ✅ (PR [#31](https://github.com/Kunj157/ForgeSight/pull/31), issue #30) — `FORGESIGHT_ENABLE_ASAN` CMake option + `asan` CI job; found and fixed 2 real bugs on the first run (see progress log).
 17. Package Qt app (AppImage or similar). ✅ (PR [#35](https://github.com/Kunj157/ForgeSight/pull/35), issue #34) — `scripts/package-appimage.sh` (linuxdeploy + linuxdeploy-plugin-qt), verified locally under Xvfb and as a CI smoke-test in the `build` job.
 
-### P4 — Phase 9 Release
+### P4 — Phase 9 Release ✅ (all 4 items done)
 
-18. Merge green stack to `dev`; PR `dev` → `main`.  
-19. `release.yml`: tag, Docker images, desktop artifact → GitHub Release.  
-20. Thin `deploy.yml` for backend (optional VPS).  
-21. Security baseline: bind address config, at least API key or LAN auth; don’t `ignoreSslErrors` in release builds.
+18. Merge green stack to `dev`; PR `dev` → `main`. ✅ (PR [#42](https://github.com/Kunj157/ForgeSight/pull/42)) — `main` fast-forwarded from empty to the full `dev` history, then tagged `v1.0.0`.
+19. `release.yml`: tag, Docker images, desktop artifact → GitHub Release. ✅ (PR [#39](https://github.com/Kunj157/ForgeSight/pull/39), issue #38) — fires only on `v*.*.*` tag pushes; builds+smoke-tests the AppImage, builds+pushes the backend image to GHCR (`:tag` and `:latest`), then creates the GitHub Release attaching the AppImage. Verified end-to-end on the real `v1.0.0` tag push.
+20. Thin `deploy.yml` for backend (optional VPS). ✅ (PR [#41](https://github.com/Kunj157/ForgeSight/pull/41), issue #40) — `docker-compose.prod.yml` override (GHCR image instead of local build) + `workflow_dispatch`-only SSH deploy template; no real VPS target exists yet, so it fails fast with a clear "configure these secrets" error until someone adds one.
+21. Security baseline: bind address config, at least API key or LAN auth; don't `ignoreSslErrors` in release builds. ✅ (PR [#37](https://github.com/Kunj157/ForgeSight/pull/37), issue #36) — `ApiServer::start()` gained a configurable bind address and optional `X-Api-Key`/WS `?api_key=` auth (empty key = disabled, matching prior local-dev-friendly default); `api` binary exposes `--bind`/`--api-key` (+ `FORGESIGHT_API_KEY` fallback); UI clients send the key automatically; `WsClient::ignoreSslErrors()` is now gated behind an explicit `allowInsecureTls` opt-in instead of running unconditionally.
 
 ### Nice-to-have (still MVP-adjacent)
 
@@ -146,21 +147,23 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ```text
 1. Read this file + implementation-plan.md
-2. Phase 8 is fully done. Move to Phase 9 (release) — items 18-21:
-   merge the green stack dev → main, add release.yml (tag + Docker
-   images + AppImage → GitHub Release), an optional thin deploy.yml
-   for the backend, and a security baseline (bind address config,
-   at least an API key or LAN-only auth, no ignoreSslErrors in
-   release builds).
+2. All of Phases 0-9 (the full MVP) are done — v1.0.0 is tagged and
+   released. There is no more required-scope work left in this
+   roadmap. Pick from the "Nice-to-have" list below, or a stretch
+   item (Kafka/Redpanda, gRPC, camera/RTSP, Prometheus, plugins) if
+   the user explicitly wants to start one — confirm scope with them
+   first per AGENTS.md ("Ask before... Changing MVP vs stretch scope").
 3. Branch from dev: feature/<n>-…
 4. TDD strictly (AGENTS.md)
 5. Small sequential commits; PR → dev
-6. Once dev is green and stable, PR dev → main and tag v1.0.0
+6. For any future release, tag vX.Y.Z on main once dev is merged in —
+   release.yml handles the rest (AppImage + GHCR image + GitHub
+   Release) automatically.
 ```
 
 ### Do not
 
-- Start Kafka / gRPC / camera / Prometheus before Phases 7–9.  
+- Start Kafka / gRPC / camera / Prometheus without explicit user confirmation (MVP is done, but these are still a scope decision, not a default next step).  
 - Commit to `main` or `dev` directly.  
 - Claim performance numbers without a measured load run.
 
@@ -191,9 +194,10 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 - [x] Offline cache + queued ack flush
 - [x] Dockerized backends + documented load numbers (measured at 100/300/600 devices)
 - [x] ASan clean in CI
-- [ ] Tagged `v1.0.0` on `main` with release artifacts (Phase 9, not started)
+- [x] Tagged `v1.0.0` on `main` with release artifacts — see [the release](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0) (AppImage + GHCR image, published automatically by `release.yml`)
+- [x] Security baseline: configurable bind address, optional API key auth (HTTP + WS), `ignoreSslErrors` gated behind explicit opt-in
 
-When all boxes above are checked, stretch phases may begin.
+**All boxes are checked — this is now a production-grade MVP. Stretch phases may begin** (with explicit user confirmation on scope, per AGENTS.md).
 
 
 ---
@@ -251,3 +255,10 @@ When all boxes above are checked, stretch phases may begin.
     - Verified end-to-end locally: built a Debug binary, ran the script, then actually launched the resulting `.AppImage` against a real Xvfb X display (not just `--version`/static inspection) — it reached "window ready" using only the bundled Qt/xcb libs, no host Qt install involved. Added the same sequence (package + Xvfb smoke-test grepping for "window ready") as extra steps in the existing `build` CI job rather than a new job, since that reuses its already-built output instead of re-installing the whole Qt package list from scratch; this also exercises `APPIMAGE_EXTRACT_AND_RUN=1` as a real regression check, since GitHub-hosted runners don't have a working `/dev/fuse` for a normal AppImage mount.
   - Recurring repo quirk confirmed again: `gh pr merge --merge` with a "Closes #n" trailer in the merge commit did **not** auto-close any of #30/#32/#34 — closed all three manually after merging, same as every previous session. Worth just expecting this every time rather than treating it as a one-off.
   - **Phase 8 is done. Next real gap: Phase 9 (release)** — `main` is still empty, no `release.yml`/`deploy.yml`, no security baseline (bind address config, API key/LAN auth, `ignoreSslErrors` audit for release builds).
+- **2026-08-05 (later):** Closed all four Phase 9 items in one session — **Phase 9 is done, MVP complete, `v1.0.0` tagged and released.**
+  - **#36 → PR #37 (security baseline, item 21):** `ApiServer::start()` gained a `QHostAddress bindAddress` and `std::string apiKey` parameter, both defaulted to prior behavior (`Any`, no auth) so every existing call site — including every pre-existing test — kept working unchanged. When a key is configured: every `/api/*` route checks a new `is_authorized()` helper against the `X-Api-Key` header (401 otherwise); the WS accept handler checks `?api_key=` on `socket->requestUrl().query()` and closes the connection otherwise; `/health` is deliberately left unguarded so liveness checks never need credentials. `api/main.cpp` exposes `--bind`/`--api-key` (`QCommandLineParser`, matching the existing style) with a `FORGESIGHT_API_KEY` env fallback and a startup warning if nothing is configured. On the UI side, `ApiClient` gained a `make_request()` helper (used by `get_json`/`post_json`/`fetchHistory`) that attaches the same header, and `WsClient::effective_url()` appends `?api_key=` only to the URL actually used to open the socket — the public `url` property stays as configured so QML bindings don't see the key. Also audited the one `ignoreSslErrors()` call in `WsClient::on_ssl_errors()`: it ran unconditionally before, now it's gated behind a new `allowInsecureTls` property (default `false`) — disabled, it logs the specific `QSslError`s and lets the connection fail instead of silently accepting a bad cert. 8+3+4 new TDD tests across `test_api_server.cpp`/`test_api_client.cpp`/`test_ws_client.cpp` (172/172 total passing). One CI hiccup: the `lint` job caught a few unformatted lines (`api/main.cpp`, `ui/src/ws_client.cpp`) from multi-line string literals — fixed with a follow-up `clang-format -i` commit rather than amending, since the branch was already pushed.
+  - **#38 → PR #39 (`release.yml`, item 19):** New workflow, tag-triggered only (`v*.*.*`, never branch pushes/PRs — those stay on `ci.yml`). Three jobs: `appimage` (same build+package+smoke-test steps as `ci.yml`'s `build` job, Release config, uploaded as a workflow artifact), `docker-image` (builds `docker/Dockerfile.backend`'s single combined image, pushes to GHCR as `ghcr.io/<owner>/forgesight-backend:<tag>` and `:latest`), and `publish-release` (downloads the AppImage artifact, `gh release create` with it attached plus a body noting the GHCR tags). Couldn't exercise the actual tag-triggered run inside the PR itself (by design — PRs target `dev`, not a tag), so it went in on syntax validation + reusing already-proven steps; the real validation came later when `v1.0.0` was actually tagged (see below) and every job passed on the first try.
+  - **#40 → PR #41 (`deploy.yml` template, item 20):** Marked optional in the roadmap since this project has no real VPS. Added `docker-compose.prod.yml` (override pointing the three backend services at the GHCR image via `FORGESIGHT_IMAGE_OWNER`/`FORGESIGHT_IMAGE_TAG` instead of building locally — deploy with `... pull && ... up -d --no-build`) and a `workflow_dispatch`-only `deploy.yml` that SSHes in and runs exactly that. A check-secrets step fails fast listing which of the 5 required repo secrets are missing, so running it today (none configured) gives a clear "not set up yet" error rather than a half-finished SSH attempt.
+  - **#42 (`dev` → `main`, item 18):** With items 19-21 merged and `dev` green, opened a PR from `dev` (99 commits ahead of `main`'s single initial commit) straight into `main` and merged it — `ci.yml` only triggers on PRs targeting `dev`, so this PR itself showed no checks, which is expected since every one of those 99 commits already had to pass full CI as a PR into `dev` first. Then tagged `v1.0.0` on `main` and pushed the tag, which fired `release.yml` for real: `docker-image` (2m12s) and `appimage` (2m29s) both passed, then `publish-release` created [the `v1.0.0` release](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0) with the AppImage attached and the GHCR image noted in the body — first actual end-to-end validation of the release pipeline, and it worked on the first attempt.
+  - Recurring repo quirk confirmed again: "Closes #n" didn't auto-close #36/#38/#40 on merge — closed all three manually, as every prior session's PRs also needed.
+  - **The MVP defined in `production-roadmap.md` is now fully complete.** Every item in the "Definition of production-grade MVP" checklist is checked. Remaining work is either the "Nice-to-have" list above or stretch phases (Kafka/Redpanda, gRPC, camera/RTSP, Prometheus, plugins) — none of which should start without first confirming scope with the user.

@@ -304,7 +304,7 @@ Rectangle {
                                             delegate: ShadowCard {
                                                 id: card
                                                 width: Math.min(320, Math.max(264, (floorSection.width - Theme.spaceLg) / 3 - 1))
-                                                height: 172
+                                                height: 196
                                                 cardRadius: Theme.radiusLg
                                                 color: mouseArea.containsMouse ? Theme.bgCardHover : Theme.bgCard
                                                 shadowBlur: mouseArea.containsMouse ? 26 : 14
@@ -343,14 +343,21 @@ Rectangle {
                                                 // Rolling sparkline of recent values, drawn locally
                                                 // per card from the periodic group snapshots.
                                                 property var history: []
+                                                // Range/trend summary of the window (min/max/delta/
+                                                // direction), computed by the tested ui::SeriesStats
+                                                // helper so the card can show context, not just a
+                                                // bare number.
+                                                property var stats: ({ valid: false })
                                                 property real trackedValue: modelData.value
                                                 onTrackedValueChanged: {
                                                     history.push(trackedValue)
                                                     if (history.length > 24) history.shift()
+                                                    stats = seriesStats.compute(history)
                                                     spark.requestPaint()
                                                 }
                                                 Component.onCompleted: {
                                                     history.push(trackedValue)
+                                                    stats = seriesStats.compute(history)
                                                     spark.requestPaint()
                                                 }
 
@@ -362,7 +369,7 @@ Rectangle {
                                                     anchors.bottomMargin: 1
                                                     anchors.leftMargin: 4
                                                     anchors.rightMargin: 4
-                                                    height: 40
+                                                    height: 54
                                                     opacity: 0.9
                                                     onPaint: {
                                                         var ctx = getContext("2d")
@@ -486,21 +493,71 @@ Rectangle {
                                                             Layout.bottomMargin: 4
                                                         }
                                                         Item { Layout.fillWidth: true }
+
+                                                        // Trend chip — direction + change vs the
+                                                        // previous sample. Neutral colouring (this is
+                                                        // movement, not health; status has its own
+                                                        // rail/badge).
+                                                        Rectangle {
+                                                            visible: card.stats.valid && card.stats.direction !== "flat"
+                                                            Layout.alignment: Qt.AlignVCenter
+                                                            height: 20
+                                                            width: trendRow.implicitWidth + 12
+                                                            radius: Theme.radiusSm
+                                                            color: Theme.bgElevated
+
+                                                            RowLayout {
+                                                                id: trendRow
+                                                                anchors.centerIn: parent
+                                                                spacing: 3
+                                                                Label {
+                                                                    text: card.stats.direction === "up" ? "\u25B2" : "\u25BC"
+                                                                    font.pixelSize: 8
+                                                                    color: card.stats.direction === "up" ? Theme.success : Theme.info
+                                                                }
+                                                                Label {
+                                                                    text: Math.abs(card.stats.delta).toFixed(1)
+                                                                    font.family: Theme.fontFamilyMono
+                                                                    font.pixelSize: Theme.fontXs
+                                                                    color: Theme.textSecondary
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
 
-                                                Label {
+                                                RowLayout {
                                                     anchors.left: parent.left
                                                     anchors.right: parent.right
                                                     anchors.bottom: spark.top
                                                     anchors.leftMargin: Theme.spaceLg
                                                     anchors.rightMargin: Theme.spaceLg
                                                     anchors.bottomMargin: 2
-                                                    text: modelData.timestamp
-                                                    font.family: Theme.fontFamilyMono
-                                                    font.pixelSize: 10
-                                                    color: Theme.textMuted
-                                                    elide: Text.ElideRight
+                                                    spacing: Theme.spaceSm
+
+                                                    // Range context over the sampled window.
+                                                    Label {
+                                                        visible: card.stats.valid && card.stats.count > 1
+                                                        text: "min " + card.stats.min.toFixed(1)
+                                                              + "  ·  max " + card.stats.max.toFixed(1)
+                                                        font.family: Theme.fontFamilyMono
+                                                        font.pixelSize: 10
+                                                        color: Theme.textMuted
+                                                        elide: Text.ElideRight
+                                                    }
+
+                                                    Item { Layout.fillWidth: true }
+
+                                                    Label {
+                                                        text: {
+                                                            var rel = timeFormat.relative(modelData.timestamp)
+                                                            return rel.length > 0 ? "Updated " + rel : modelData.timestamp
+                                                        }
+                                                        font.family: Theme.fontFamily
+                                                        font.pixelSize: 10
+                                                        color: Theme.textMuted
+                                                        elide: Text.ElideRight
+                                                    }
                                                 }
                                             }
                                         }

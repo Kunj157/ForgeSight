@@ -10,6 +10,13 @@ Rectangle {
 
     property bool loading: false
     property int selectedRangeHours: 24
+    // ISO 8601 start of the query window, driven by the range presets and
+    // passed to the API. Displayed to the user in a friendly form.
+    property string sinceIso: {
+        var d = new Date()
+        d.setHours(d.getHours() - 24)
+        return d.toISOString()
+    }
     property double minVal: 0
     property double maxVal: 0
     property double minTs: 0
@@ -187,34 +194,44 @@ Rectangle {
                                 selectedRangeHours = modelData.hours
                                 var d = new Date()
                                 d.setHours(d.getHours() - modelData.hours)
-                                fromDate.text = d.toISOString()
+                                root.sinceIso = d.toISOString()
                                 loadHistory()
                             }
                         }
                     }
                 }
 
+                // Friendly, read-only display of the query window start.
+                // The range presets above drive it; showing the raw ISO string
+                // here read as unfinished.
                 Rectangle {
                     height: 30
-                    Layout.preferredWidth: 170
+                    Layout.preferredWidth: 190
                     radius: Theme.radiusMd
                     color: Theme.bgInput
                     border.color: Theme.border
                     border.width: 1
-                    TextInput {
-                        id: fromDate
+                    RowLayout {
                         anchors.fill: parent
-                        anchors.margins: 6
-                        text: {
-                            var d = new Date()
-                            d.setHours(d.getHours() - 24)
-                            return d.toISOString()
+                        anchors.leftMargin: Theme.spaceMd
+                        anchors.rightMargin: Theme.spaceMd
+                        spacing: 6
+                        Icon {
+                            name: "clock"
+                            width: 12; height: 12
+                            color: Theme.textMuted
                         }
-                        color: Theme.textPrimary
-                        font.family: Theme.fontFamilyMono
-                        font.pixelSize: Theme.fontXs
-                        clip: true
-                        selectByMouse: true
+                        Label {
+                            text: {
+                                var lbl = timeFormat.dateTimeLabel(root.sinceIso)
+                                return lbl.length > 0 ? "From " + lbl : "From " + root.sinceIso
+                            }
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontXs
+                            color: Theme.textSecondary
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
                     }
                 }
 
@@ -472,6 +489,21 @@ Rectangle {
                 font.pixelSize: Theme.fontXs
             }
 
+            // Range readout for the loaded window.
+            Label {
+                visible: historyModel.pointCount > 0
+                text: "min " + root.minVal.toFixed(1) + "  ·  max " + root.maxVal.toFixed(1)
+                font.family: Theme.fontFamilyMono
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontXs
+            }
+
+            Rectangle {
+                visible: historyModel.pointCount > 0
+                width: 1; height: 16
+                color: Theme.divider
+            }
+
             Label {
                 text: historyModel.pointCount + " points"
                 font.family: Theme.fontFamilyMono
@@ -494,8 +526,7 @@ Rectangle {
             deviceModel.index(deviceCombo.currentIndex, 0),
             deviceModel.DeviceIdRole)
         var sensor = sensorCombo.currentText
-        var since = fromDate.text
 
-        apiClient.fetchHistory(device, sensor, since)
+        apiClient.fetchHistory(device, sensor, root.sinceIso)
     }
 }
