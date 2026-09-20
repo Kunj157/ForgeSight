@@ -133,23 +133,47 @@ std::vector<ingestion::Reading> DeviceService::list_latest_readings() const {
 
 std::vector<ingestion::Reading> DeviceService::get_history(const std::string& device_id,
                                                            const std::string& sensor,
-                                                           const std::string& since) const {
+                                                           const std::string& since,
+                                                           int max_points) const {
 
     std::vector<ingestion::Reading> readings;
     if (!conn_)
         return readings;
 
-    const char* params[3] = {device_id.c_str(), sensor.c_str(), since.c_str()};
-    int lengths[3] = {static_cast<int>(device_id.size()), static_cast<int>(sensor.size()),
-                      static_cast<int>(since.size())};
-    int formats[3] = {0, 0, 0};
+    const std::string max_points_str = std::to_string(max_points);
+    const char* params[4] = {device_id.c_str(), sensor.c_str(), since.c_str(),
+                             max_points_str.c_str()};
+    int lengths[4] = {static_cast<int>(device_id.size()), static_cast<int>(sensor.size()),
+                      static_cast<int>(since.size()), static_cast<int>(max_points_str.size())};
+    int formats[4] = {0, 0, 0, 0};
 
-    auto* res = PQexecParams(static_cast<PGconn*>(conn_),
-                             "SELECT device_id, sensor, value, unit, timestamp::text, anomaly "
-                             "FROM readings "
-                             "WHERE device_id = $1 AND sensor = $2 AND timestamp >= $3 "
-                             "ORDER BY timestamp",
-                             3, nullptr, params, lengths, formats, 0);
+    // Downsample to ~max_points evenly-spaced rows once the window exceeds the
+    // cap, so a wide range doesn't ship (and the chart doesn't append) tens of
+    // thousands of points. `count(*) OVER ()` gives the total so the stride is
+    // ceil(total / max_points); we keep every stride-th row plus all anomalies
+    // and the final row. max_points <= 0 skips this and returns everything.
+    const char* sql_all = "SELECT device_id, sensor, value, unit, timestamp::text, anomaly "
+                          "FROM readings "
+                          "WHERE device_id = $1 AND sensor = $2 AND timestamp >= $3 "
+                          "ORDER BY timestamp";
+    const char* sql_downsampled =
+        "SELECT device_id, sensor, value, unit, timestamp::text, anomaly FROM ("
+        "  SELECT device_id, sensor, value, unit, timestamp, anomaly, "
+        "         row_number() OVER (ORDER BY timestamp) AS rn, "
+        "         count(*) OVER () AS total "
+        "  FROM readings "
+        "  WHERE device_id = $1 AND sensor = $2 AND timestamp >= $3"
+        ") s "
+        "WHERE total <= $4::int "
+        "   OR ((rn - 1) % GREATEST(1, (total + $4::int - 1) / $4::int)) = 0 "
+        "   OR anomaly "
+        "   OR rn = total "
+        "ORDER BY timestamp";
+
+    auto* res = (max_points > 0) ? PQexecParams(static_cast<PGconn*>(conn_), sql_downsampled, 4,
+                                                nullptr, params, lengths, formats, 0)
+                                 : PQexecParams(static_cast<PGconn*>(conn_), sql_all, 3, nullptr,
+                                                params, lengths, formats, 0);
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
         PQclear(res);
