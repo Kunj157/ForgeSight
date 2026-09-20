@@ -144,6 +144,99 @@ TEST_F(DeviceServiceTest, NullConnReturnsEmpty) {
     EXPECT_TRUE(svc.get_history("a", "b", "c").empty());
 }
 
+// Regression guard for the dashboard-bootstrap perf bug fixed in v1.1.0 (#46).
+// The "latest reading per device+sensor" query behind list_devices() must be
+// servable by idx_readings_latest with NO Sort step — at volume the pre-fix
+// query did a full-table Seq Scan + on-disk Sort (~5.3s), which froze the
+// single-threaded API event loop and timed out concurrent bootstrap requests
+// (e.g. /api/alarms).
+//
+// The whole point of idx_readings_latest being `(device_id, sensor, timestamp
+// DESC)` is that it already provides the exact order the DISTINCT ON needs, so
+// the plan is `Unique -> Index Scan` with no separate Sort. We assert that with
+// enable_seqscan disabled: this is deterministic (unlike the raw cost-based
+// choice on small tables, which flips between Seq Scan+Sort and Index Scan) and
+// still catches the real regression — if the index is dropped or its column
+// order / DESC is changed, the planner is forced back into a Sort and the test
+// fails.
+//
+// Self-contained: creates the table + index idempotently rather than relying on
+// another test binary having done so, since ctest runs every suite in one pass
+// with no guaranteed ordering. Verified on PostgreSQL 16.15 (== CI's postgres:16).
+TEST_F(DeviceServiceTest, LatestReadingQueryIsIndexBackedNoSort) {
+    exec_and_clear(
+        conn,
+        "CREATE TABLE IF NOT EXISTS readings ("
+        "  id BIGSERIAL PRIMARY KEY, device_id TEXT NOT NULL, sensor TEXT NOT NULL,"
+        "  value DOUBLE PRECISION NOT NULL, unit TEXT NOT NULL, timestamp TIMESTAMPTZ NOT NULL,"
+        "  anomaly BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    exec_and_clear(conn, "CREATE INDEX IF NOT EXISTS idx_readings_latest "
+                         "ON readings (device_id, sensor, timestamp DESC)");
+
+    // Enough volume for a meaningful latest-per-group check, in one server-side
+    // statement: 2k timestamps x 3 sensors = 6k rows.
+    exec_and_clear(conn,
+                   "INSERT INTO readings (device_id, sensor, value, unit, timestamp, anomaly) "
+                   "SELECT 'svc-test', s.sensor, random() * 100, 'u', "
+                   "       TIMESTAMPTZ '2026-07-26 10:00:00Z' + (g || ' seconds')::interval, false "
+                   "FROM generate_series(1, 2000) g "
+                   "CROSS JOIN (VALUES ('temperature'),('pressure'),('vibration')) AS s(sensor)");
+
+    // Deterministic latest marker per sensor (far-future timestamp, known value).
+    seed_reading(conn, "svc-test", "temperature", 42.5, "2026-07-26T20:00:00Z");
+    seed_reading(conn, "svc-test", "pressure", 7.25, "2026-07-26T20:00:00Z");
+    seed_reading(conn, "svc-test", "vibration", 3.5, "2026-07-26T20:00:00Z");
+
+    exec_and_clear(conn, "ANALYZE readings");
+
+    // (1) Correctness at volume: latest-per-sensor returns exactly the marker rows.
+    api::DeviceService svc(conn);
+    auto latest = svc.list_latest_readings();
+    int temp = 0, pressure = 0, vibration = 0;
+    for (const auto& r : latest) {
+        if (r.device_id != "svc-test")
+            continue;
+        if (r.sensor == "temperature") {
+            ++temp;
+            EXPECT_DOUBLE_EQ(r.value, 42.5);
+        } else if (r.sensor == "pressure") {
+            ++pressure;
+            EXPECT_DOUBLE_EQ(r.value, 7.25);
+        } else if (r.sensor == "vibration") {
+            ++vibration;
+            EXPECT_DOUBLE_EQ(r.value, 3.5);
+        }
+    }
+    EXPECT_EQ(temp, 1);
+    EXPECT_EQ(pressure, 1);
+    EXPECT_EQ(vibration, 1);
+
+    // (2) Perf shape: idx_readings_latest must be able to satisfy the DISTINCT ON
+    // ordering without a Sort. With seqscan disabled the planner is forced onto
+    // the index if (and only if) the index actually provides that order. This
+    // mirrors the exact subquery in DeviceService::list_devices().
+    exec_and_clear(conn, "SET enable_seqscan = off");
+    auto* res = PQexec(static_cast<PGconn*>(conn),
+                       "EXPLAIN SELECT DISTINCT ON (device_id, sensor) "
+                       "  device_id, sensor, value, unit, timestamp, anomaly "
+                       "FROM readings ORDER BY device_id, sensor, timestamp DESC");
+    ASSERT_EQ(PQresultStatus(res), PGRES_TUPLES_OK);
+    std::string plan;
+    for (int i = 0; i < PQntuples(res); ++i) {
+        plan += PQgetvalue(res, i, 0);
+        plan += '\n';
+    }
+    PQclear(res);
+    exec_and_clear(conn, "SET enable_seqscan = on");
+
+    EXPECT_NE(plan.find("idx_readings_latest"), std::string::npos)
+        << "latest-reading query should be served by idx_readings_latest. Plan:\n"
+        << plan;
+    EXPECT_EQ(plan.find("Sort"), std::string::npos)
+        << "idx_readings_latest should satisfy the ordering with no Sort. Plan:\n"
+        << plan;
+}
+
 TEST_F(DeviceServiceTest, DeviceWithoutLocationDefaultsToUnassigned) {
     seed_reading(conn, "svc-test", "temperature", 65.0, "2026-07-26T10:00:00Z");
     api::DeviceService svc(conn);
