@@ -20,8 +20,35 @@ bool RuleEvaluator::evaluate(const Rule& rule, double value) const {
     return false;
 }
 
+namespace {
+
+// Describes how a value relates to its threshold, per condition, so an
+// auto-generated message reads naturally ("exceeded" / "below" / "reached").
+std::string condition_phrase(Condition condition) {
+    switch (condition) {
+    case Condition::GreaterThan:
+    case Condition::GreaterOrEqual:
+        return "exceeded threshold";
+    case Condition::LessThan:
+    case Condition::LessOrEqual:
+        return "below threshold";
+    case Condition::Equal:
+        return "reached threshold";
+    }
+    return "crossed threshold";
+}
+
+} // namespace
+
+std::string RuleEvaluator::default_message_template(const Rule& rule) const {
+    return "{device} {sensor} value {value} " + condition_phrase(rule.condition) + " {threshold}";
+}
+
 std::string RuleEvaluator::format_message(const Rule& rule, double value) const {
-    std::string msg = rule.message_template;
+    // Fall back to a descriptive auto-generated template when a rule has no
+    // message configured, so an alarm is never rendered with a blank message.
+    std::string msg =
+        rule.message_template.empty() ? default_message_template(rule) : rule.message_template;
 
     auto replace = [&](const std::string& placeholder, const std::string& replacement) {
         std::size_t pos = 0;

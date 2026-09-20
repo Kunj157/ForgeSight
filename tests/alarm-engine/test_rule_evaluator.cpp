@@ -130,6 +130,43 @@ TEST_F(RuleEvaluatorTest, FormatMessage) {
     EXPECT_EQ(msg, "pump-001 temperature value 85 exceeded threshold 80");
 }
 
+TEST_F(RuleEvaluatorTest, FormatMessageFallsBackWhenTemplateEmpty) {
+    // A rule with no template (e.g. seeded before templates existed, or
+    // created via the API without one) must still yield a descriptive
+    // message rather than an empty string.
+    auto rule = make_rule(Condition::GreaterThan, 80.0);
+    rule.message_template = "";
+    auto msg = eval.format_message(rule, 85.0);
+
+    EXPECT_FALSE(msg.empty());
+    EXPECT_NE(msg.find("pump-001"), std::string::npos);
+    EXPECT_NE(msg.find("temperature"), std::string::npos);
+    EXPECT_NE(msg.find("85"), std::string::npos);
+    EXPECT_NE(msg.find("80"), std::string::npos);
+}
+
+TEST_F(RuleEvaluatorTest, FormatMessageFallbackReflectsCondition) {
+    auto rule = make_rule(Condition::LessThan, 1.0, Severity::Critical);
+    rule.sensor = "pressure";
+    rule.message_template = "";
+    auto msg = eval.format_message(rule, 0.4);
+
+    EXPECT_FALSE(msg.empty());
+    EXPECT_NE(msg.find("pressure"), std::string::npos);
+    // "below" for a LessThan rule, not "exceeded".
+    EXPECT_NE(msg.find("below"), std::string::npos);
+}
+
+TEST_F(RuleEvaluatorTest, EvaluateAllNeverProducesEmptyMessage) {
+    auto rule = make_rule(Condition::GreaterThan, 80.0, Severity::Warning);
+    rule.message_template = "";
+    std::vector<Rule> rules = {rule};
+
+    auto alarms = eval.evaluate_all(rules, "pump-001", "temperature", 90.0, "2026-07-26T10:00:00Z");
+    ASSERT_EQ(alarms.size(), 1u);
+    EXPECT_FALSE(alarms[0].message.empty());
+}
+
 TEST_F(RuleEvaluatorTest, AlarmContainsCorrectFields) {
     std::vector<Rule> rules = {
         make_rule(Condition::GreaterThan, 80.0, Severity::Critical),
