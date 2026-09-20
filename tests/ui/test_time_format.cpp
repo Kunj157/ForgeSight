@@ -59,3 +59,16 @@ TEST(TimeFormatTest, RelativeReturnsEmptyForGarbage) {
     EXPECT_TRUE(fmt.relative("").isEmpty());
     EXPECT_TRUE(fmt.relative("nonsense").isEmpty());
 }
+
+TEST(TimeFormatTest, DateTimeLabelIsCompactOrEmpty) {
+    TimeFormat fmt;
+    QString label = fmt.dateTimeLabel("2026-09-20T08:32:00+00:00");
+    // Compact "MMM d, HH:mm" form — assert loosely to stay locale/TZ robust.
+    EXPECT_FALSE(label.isEmpty());
+    EXPECT_TRUE(label.contains(", "));
+    QRegularExpression re("\\d{2}:\\d{2}$");
+    EXPECT_TRUE(re.match(label).hasMatch()) << label.toStdString();
+
+    EXPECT_TRUE(fmt.dateTimeLabel("").isEmpty());
+    EXPECT_TRUE(fmt.dateTimeLabel("garbage").isEmpty());
+}

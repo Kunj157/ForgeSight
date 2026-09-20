@@ -35,6 +35,13 @@ QString TimeFormat::clockTime(const QString& iso) const {
     return dt.toLocalTime().toString(QStringLiteral("HH:mm:ss"));
 }
 
+QString TimeFormat::dateTimeLabel(const QString& iso) const {
+    const QDateTime dt = parse(iso);
+    if (!dt.isValid())
+        return {};
+    return dt.toLocalTime().toString(QStringLiteral("MMM d, HH:mm"));
+}
+
 QString TimeFormat::relativeFrom(const QString& iso, const QDateTime& now) const {
     const QDateTime dt = parse(iso);
     if (!dt.isValid())
