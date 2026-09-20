@@ -26,9 +26,18 @@ class DeviceService {
 
     std::vector<DeviceInfo> list_devices() const;
     std::vector<ingestion::Reading> list_latest_readings() const;
+    /// Readings for a device+sensor since `since`, in chronological order.
+    ///
+    /// When `max_points > 0` and the window holds more than that many rows, the
+    /// result is downsampled to roughly `max_points` evenly-spaced rows (plus
+    /// any anomaly rows and the final row, which are always kept). This bounds
+    /// the payload/render cost for wide time ranges — a 24h window at 1 Hz is
+    /// ~86k rows, which would otherwise freeze the chart. The default (1000) is
+    /// about a chart's worth of horizontal pixels, so more points add no visual
+    /// value. `max_points <= 0` disables downsampling and returns every row.
     std::vector<ingestion::Reading> get_history(const std::string& device_id,
-                                                const std::string& sensor,
-                                                const std::string& since) const;
+                                                const std::string& sensor, const std::string& since,
+                                                int max_points = 1000) const;
 
     std::vector<ingestion::Reading> get_readings_since(const std::string& since) const;
 

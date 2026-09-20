@@ -144,6 +144,56 @@ TEST_F(DeviceServiceTest, NullConnReturnsEmpty) {
     EXPECT_TRUE(svc.get_history("a", "b", "c").empty());
 }
 
+// A wide history window at 1 Hz is tens of thousands of rows; returning them
+// all froze the chart (the UI appends points one by one). get_history caps the
+// result to ~max_points evenly-spaced rows so the payload/render stays bounded.
+TEST_F(DeviceServiceTest, GetHistoryDownsamplesToMaxPoints) {
+    exec_and_clear(conn,
+                   "INSERT INTO readings (device_id, sensor, value, unit, timestamp, anomaly) "
+                   "SELECT 'svc-test', 'temperature', g, 'C', "
+                   "       TIMESTAMPTZ '2026-07-26 10:00:00Z' + (g || ' seconds')::interval, false "
+                   "FROM generate_series(1, 1000) g");
+    api::DeviceService svc(conn);
+
+    // max_points <= 0 disables downsampling.
+    auto all = svc.get_history("svc-test", "temperature", "2026-07-26T00:00:00Z", 0);
+    EXPECT_EQ(all.size(), 1000u);
+
+    // Capped: roughly max_points (+ the always-kept final row).
+    auto capped = svc.get_history("svc-test", "temperature", "2026-07-26T00:00:00Z", 100);
+    EXPECT_GT(capped.size(), 50u);
+    EXPECT_LT(capped.size(), 150u);
+
+    // Chronological, with the first and last samples preserved (values are the
+    // monotonic 1..1000 series, so this also verifies ordering).
+    ASSERT_FALSE(capped.empty());
+    for (size_t i = 1; i < capped.size(); ++i)
+        EXPECT_LE(capped[i - 1].value, capped[i].value);
+    EXPECT_DOUBLE_EQ(capped.front().value, 1.0);
+    EXPECT_DOUBLE_EQ(capped.back().value, 1000.0);
+}
+
+// Anomalies are the whole point of the chart's scatter overlay, so downsampling
+// must never drop them.
+TEST_F(DeviceServiceTest, GetHistoryKeepsAnomaliesWhenDownsampling) {
+    exec_and_clear(conn,
+                   "INSERT INTO readings (device_id, sensor, value, unit, timestamp, anomaly) "
+                   "SELECT 'svc-test', 'temperature', g, 'C', "
+                   "       TIMESTAMPTZ '2026-07-26 10:00:00Z' + (g || ' seconds')::interval, false "
+                   "FROM generate_series(1, 1000) g");
+    exec_and_clear(conn, "UPDATE readings SET anomaly = true "
+                         "WHERE device_id = 'svc-test' AND sensor = 'temperature' "
+                         "AND value IN (250, 750)");
+    api::DeviceService svc(conn);
+
+    auto capped = svc.get_history("svc-test", "temperature", "2026-07-26T00:00:00Z", 20);
+    int anomalies = 0;
+    for (const auto& r : capped)
+        if (r.anomaly)
+            ++anomalies;
+    EXPECT_GE(anomalies, 2); // both anomaly rows survive an aggressive cap
+}
+
 // Regression guard for the dashboard-bootstrap perf bug fixed in v1.1.0 (#46).
 // The "latest reading per device+sensor" query behind list_devices() must be
 // servable by idx_readings_latest with NO Sort step — at volume the pre-fix
