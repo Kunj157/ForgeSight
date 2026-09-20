@@ -19,6 +19,10 @@ class TimeFormat : public QObject {
     // Compact local wall-clock time, "HH:mm:ss". Empty if unparseable.
     Q_INVOKABLE QString clockTime(const QString& iso) const;
 
+    // Compact local date + time, "MMM d, HH:mm" (e.g. "Sep 20, 10:32").
+    // Empty if unparseable.
+    Q_INVOKABLE QString dateTimeLabel(const QString& iso) const;
+
     // Human-friendly age relative to now: "just now", "12s ago", "5m ago",
     // "3h ago", "2d ago". Empty if unparseable.
     Q_INVOKABLE QString relative(const QString& iso) const;
