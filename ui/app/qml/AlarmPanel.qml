@@ -316,7 +316,13 @@ Rectangle {
                     }
 
                     Label {
-                        text: timestamp
+                        text: {
+                            var c = timeFormat.clockTime(timestamp)
+                            if (c.length === 0)
+                                return timestamp
+                            var rel = timeFormat.relative(timestamp)
+                            return rel.length > 0 ? c + "  ·  " + rel : c
+                        }
                         font.family: Theme.fontFamilyMono
                         font.pixelSize: Theme.fontXs
                         color: Theme.textMuted

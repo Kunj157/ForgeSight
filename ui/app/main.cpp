@@ -11,6 +11,7 @@
 #include "ui/device_model.h"
 #include "ui/history_model.h"
 #include "ui/offline_cache.h"
+#include "ui/time_format.h"
 #include "ui/ws_client.h"
 
 int main(int argc, char* argv[]) {
@@ -28,6 +29,7 @@ int main(int argc, char* argv[]) {
     ui::HistoryModel historyModel;
     ui::ApiClient apiClient;
     ui::OfflineCache offlineCache;
+    ui::TimeFormat timeFormat;
 
     QString apiBase = qEnvironmentVariable("FORGESIGHT_API", "http://127.0.0.1:8080");
     QString wsUrl = qEnvironmentVariable("FORGESIGHT_WS", "ws://127.0.0.1:8081");
@@ -114,6 +116,7 @@ int main(int argc, char* argv[]) {
     ctx->setContextProperty("historyModel", &historyModel);
     ctx->setContextProperty("apiClient", &apiClient);
     ctx->setContextProperty("offlineCache", &offlineCache);
+    ctx->setContextProperty("timeFormat", &timeFormat);
 
     QObject::connect(&engine, &QQmlEngine::warnings, [](const QList<QQmlError>& warnings) {
         for (const auto& w : warnings) {
