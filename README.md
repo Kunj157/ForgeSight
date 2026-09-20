@@ -1,6 +1,23 @@
 # ForgeSight
 
+[![CI](https://github.com/Kunj157/ForgeSight/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/Kunj157/ForgeSight/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Kunj157/ForgeSight)](https://github.com/Kunj157/ForgeSight/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/Kunj157/ForgeSight)](LICENSE)
+
 Qt/C++ desktop platform for real-time industrial device monitoring — live dashboards, alarm rules, and historical analytics over MQTT-fed sensor data.
+
+## Status
+
+**Production-grade MVP complete — [`v1.0.0`](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0) released.** All 10 planned phases (repo/CI, simulators, ingestion, alarm engine, REST/WS API, dashboard, history/export, offline mode, packaging/load test, release) are done end-to-end, built test-first per this repo's strict TDD workflow:
+
+- **Live stack**: MQTT-fed simulators → ingestion → PostgreSQL → rule-based alarm engine → REST/WebSocket API → Qt Quick dashboard (plant/floor device tree, alarm ack, historical charts + CSV/PDF export).
+- **Resilient by design**: SQLite-backed offline cache restores last-known state on cold start, queues alarm acks while disconnected, and flushes them on reconnect; a staleness-aware UI indicator distinguishes "no fresh data" from "socket closed."
+- **Secured**: optional API-key auth on every HTTP/WebSocket request, configurable bind address, and TLS-bypass behavior gated behind an explicit opt-in rather than silently ignoring certificate errors.
+- **Tested**: 172 passing tests (`ctest`) across ingestion/alarm-engine/api/ui, plus an AddressSanitizer CI job (zero leaks) and Python simulator tests.
+- **Load-tested**: up to 600 simulated devices (~1,800 msg/s) with sub-second p95 ingestion latency on an 8-core dev laptop — see [Load testing](#load-testing) for the full numbers.
+- **Shipped**: Dockerized backend (single combined image for ingestion/alarm-engine/api), a self-contained Linux AppImage for the desktop app, and a tag-triggered `release.yml` that publishes both to GHCR and GitHub Releases automatically.
+
+See `production-roadmap.md` for the full phase-by-phase history and progress log.
 
 ## Prerequisites
 
