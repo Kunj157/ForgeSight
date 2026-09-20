@@ -45,14 +45,30 @@ bool DbWriter::ensure_table() {
                       PQerrorMessage(static_cast<PGconn*>(conn_)));
     }
 
-    const char* index_ddl = "CREATE INDEX IF NOT EXISTS idx_readings_device_sensor_timestamp "
-                            "ON readings (device_id, sensor, timestamp)";
-    auto* idx_res = PQexec(static_cast<PGconn*>(conn_), index_ddl);
-    bool idx_ok = PQresultStatus(idx_res) == PGRES_COMMAND_OK;
-    PQclear(idx_res);
-    if (!idx_ok) {
-        spdlog::error("Failed to create readings index: {}",
-                      PQerrorMessage(static_cast<PGconn*>(conn_)));
+    // Indexes backing the query patterns this project actually runs:
+    //  - (device_id, sensor, timestamp)      → range history queries.
+    //  - (device_id, sensor, timestamp DESC) → "latest reading per device+sensor"
+    //    DISTINCT ON (dashboard bootstrap); the DESC order lets it use an index
+    //    scan instead of a full-table Seq Scan + on-disk Sort.
+    //  - (timestamp)                          → the WS poll's `WHERE timestamp >= $1`.
+    const char* index_ddls[] = {
+        "CREATE INDEX IF NOT EXISTS idx_readings_device_sensor_timestamp "
+        "ON readings (device_id, sensor, timestamp)",
+        "CREATE INDEX IF NOT EXISTS idx_readings_latest "
+        "ON readings (device_id, sensor, timestamp DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_readings_timestamp "
+        "ON readings (timestamp)",
+    };
+
+    bool idx_ok = true;
+    for (const char* index_ddl : index_ddls) {
+        auto* idx_res = PQexec(static_cast<PGconn*>(conn_), index_ddl);
+        if (PQresultStatus(idx_res) != PGRES_COMMAND_OK) {
+            idx_ok = false;
+            spdlog::error("Failed to create readings index: {}",
+                          PQerrorMessage(static_cast<PGconn*>(conn_)));
+        }
+        PQclear(idx_res);
     }
 
     return ok && idx_ok;
