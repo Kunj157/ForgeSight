@@ -496,8 +496,11 @@ Rectangle {
                                                     anchors.leftMargin: Theme.spaceLg
                                                     anchors.rightMargin: Theme.spaceLg
                                                     anchors.bottomMargin: 2
-                                                    text: modelData.timestamp
-                                                    font.family: Theme.fontFamilyMono
+                                                    text: {
+                                                        var rel = timeFormat.relative(modelData.timestamp)
+                                                        return rel.length > 0 ? "Updated " + rel : modelData.timestamp
+                                                    }
+                                                    font.family: Theme.fontFamily
                                                     font.pixelSize: 10
                                                     color: Theme.textMuted
                                                     elide: Text.ElideRight
