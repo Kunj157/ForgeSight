@@ -11,6 +11,7 @@
 #include "ui/device_model.h"
 #include "ui/history_model.h"
 #include "ui/offline_cache.h"
+#include "ui/rule_model.h"
 #include "ui/series_stats.h"
 #include "ui/time_format.h"
 #include "ui/ws_client.h"
@@ -32,6 +33,7 @@ int main(int argc, char* argv[]) {
     ui::OfflineCache offlineCache;
     ui::TimeFormat timeFormat;
     ui::SeriesStats seriesStats;
+    ui::RuleModel ruleModel;
 
     QString apiBase = qEnvironmentVariable("FORGESIGHT_API", "http://127.0.0.1:8080");
     QString wsUrl = qEnvironmentVariable("FORGESIGHT_WS", "ws://127.0.0.1:8081");
@@ -120,6 +122,10 @@ int main(int argc, char* argv[]) {
     ctx->setContextProperty("offlineCache", &offlineCache);
     ctx->setContextProperty("timeFormat", &timeFormat);
     ctx->setContextProperty("seriesStats", &seriesStats);
+    // Rules tab. RuleEditorPanel wires apiClient.ruleReceived -> ruleModel
+    // itself (it owns the load/clear lifecycle), so no connection is made here
+    // — doing both would double-insert each rule.
+    ctx->setContextProperty("ruleModel", &ruleModel);
 
     QObject::connect(&engine, &QQmlEngine::warnings, [](const QList<QQmlError>& warnings) {
         for (const auto& w : warnings) {
