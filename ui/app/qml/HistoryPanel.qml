@@ -22,6 +22,20 @@ Rectangle {
     property double minTs: 0
     property double maxTs: 0
 
+    // Fit both axes to the loaded data extents (10% vertical margin). Used on
+    // load and by the Reset control to undo any pan/zoom.
+    function fitAxes() {
+        if (historyModel.point_count() <= 0)
+            return
+        var margin = (root.maxVal - root.minVal) * 0.1
+        if (margin === 0)
+            margin = 1
+        axisY.min = root.minVal - margin
+        axisY.max = root.maxVal + margin
+        axisX.min = new Date(root.minTs)
+        axisX.max = new Date(root.maxTs)
+    }
+
     Connections {
         target: apiClient
         function onHistoryPointReceived(deviceId, sensor, value, unit, timestamp, anomaly) {
@@ -47,14 +61,7 @@ Rectangle {
                 statusText.text = "Load failed: " + error
                 return
             }
-            if (historyModel.point_count() > 0) {
-                var margin = (root.maxVal - root.minVal) * 0.1
-                if (margin === 0) margin = 1
-                axisY.min = root.minVal - margin
-                axisY.max = root.maxVal + margin
-                axisX.min = new Date(root.minTs)
-                axisX.max = new Date(root.maxTs)
-            }
+            root.fitAxes()
             statusText.text = "Loaded " + historyModel.point_count() + " points"
         }
     }
@@ -330,21 +337,89 @@ Rectangle {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: Theme.spaceMd
-                text: "Scroll to zoom"
+                text: "Scroll to zoom · drag to pan"
                 font.family: Theme.fontFamily
                 font.pixelSize: 10
                 color: Theme.textMuted
                 opacity: 0.7
             }
 
+            // Reset the pan/zoom back to the full loaded window. z > the pan
+            // overlay so the button still receives clicks.
+            Rectangle {
+                z: 2
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: Theme.spaceMd
+                visible: historyModel.pointCount > 0
+                height: 28
+                width: resetRow.implicitWidth + 18
+                radius: Theme.radiusMd
+                color: resetMouse.containsMouse ? Theme.bgCardHover : Theme.bgElevated
+                border.color: Theme.border
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+                RowLayout {
+                    id: resetRow
+                    anchors.centerIn: parent
+                    spacing: 5
+                    Icon { name: "chart"; width: 11; height: 11; color: Theme.textSecondary }
+                    Label {
+                        text: "Reset view"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontXs
+                        color: Theme.textSecondary
+                    }
+                }
+                MouseArea {
+                    id: resetMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.fitAxes()
+                }
+            }
+
+            // Pan (drag) + cursor-centered zoom (wheel) on the time axis. The
+            // range math lives in the tested ChartZoom helper; here we only map
+            // pixels to a fraction of the plot width and feed axisX its result.
+            // Y stays fit-to-data. Anchored to the ChartView so plotArea coords
+            // line up with the mouse coords.
             MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.NoButton
+                anchors.fill: chartView
+                acceptedButtons: Qt.LeftButton
+                hoverEnabled: true
+                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                property real lastX: 0
+
+                onPressed: function(mouse) { lastX = mouse.x }
+
+                onPositionChanged: function(mouse) {
+                    if (!pressed || historyModel.pointCount === 0)
+                        return
+                    var plotW = chartView.plotArea.width
+                    if (plotW <= 0)
+                        return
+                    // Drag right → move the window back in time (content follows
+                    // the cursor), so the pan fraction is the negative dx.
+                    var dxFrac = -(mouse.x - lastX) / plotW
+                    lastX = mouse.x
+                    var r = chartZoom.pan(axisX.min.getTime(), axisX.max.getTime(), dxFrac)
+                    axisX.min = new Date(r.min)
+                    axisX.max = new Date(r.max)
+                }
+
                 onWheel: function(wheel) {
-                    if (wheel.angleDelta.y > 0)
-                        chartView.zoomIn()
-                    else
-                        chartView.zoomOut()
+                    if (historyModel.pointCount === 0)
+                        return
+                    var plotW = chartView.plotArea.width
+                    var focal = plotW > 0
+                        ? (wheel.x - chartView.plotArea.x) / plotW
+                        : 0.5
+                    var scale = wheel.angleDelta.y > 0 ? 0.8 : 1.25
+                    var r = chartZoom.zoom(axisX.min.getTime(), axisX.max.getTime(), focal, scale)
+                    axisX.min = new Date(r.min)
+                    axisX.max = new Date(r.max)
                 }
             }
 
