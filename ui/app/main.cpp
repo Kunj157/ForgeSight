@@ -8,6 +8,7 @@
 
 #include "ui/alarm_model.h"
 #include "ui/api_client.h"
+#include "ui/chart_zoom.h"
 #include "ui/device_model.h"
 #include "ui/history_model.h"
 #include "ui/offline_cache.h"
@@ -34,6 +35,7 @@ int main(int argc, char* argv[]) {
     ui::TimeFormat timeFormat;
     ui::SeriesStats seriesStats;
     ui::RuleModel ruleModel;
+    ui::ChartZoom chartZoom;
 
     QString apiBase = qEnvironmentVariable("FORGESIGHT_API", "http://127.0.0.1:8080");
     QString wsUrl = qEnvironmentVariable("FORGESIGHT_WS", "ws://127.0.0.1:8081");
@@ -126,6 +128,7 @@ int main(int argc, char* argv[]) {
     // itself (it owns the load/clear lifecycle), so no connection is made here
     // — doing both would double-insert each rule.
     ctx->setContextProperty("ruleModel", &ruleModel);
+    ctx->setContextProperty("chartZoom", &chartZoom);
 
     QObject::connect(&engine, &QQmlEngine::warnings, [](const QList<QQmlError>& warnings) {
         for (const auto& w : warnings) {
