@@ -201,6 +201,101 @@ void ApiClient::fetchHistory(const QString& deviceId, const QString& sensor, con
     });
 }
 
+void ApiClient::fetchRules() {
+    // Not routed through get_json(): that helper is bootstrap-oriented and
+    // emits bootstrapFinished when its pending counter drains, which would
+    // fire spuriously on the Rules tab. Rules get their own load lifecycle.
+    QUrl url = base_url_;
+    url.setPath(QStringLiteral("/api/rules"));
+
+    set_busy(true);
+    auto* reply = nam_.get(make_request(url));
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        set_busy(false);
+
+        const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (reply->error() != QNetworkReply::NoError || status >= 400) {
+            Q_EMIT rulesLoadFinished(false, reply->errorString().isEmpty()
+                                                ? QStringLiteral("HTTP %1").arg(status)
+                                                : reply->errorString());
+            return;
+        }
+
+        const auto doc = QJsonDocument::fromJson(reply->readAll());
+        if (!doc.isArray()) {
+            Q_EMIT rulesLoadFinished(false, QStringLiteral("Invalid rules payload"));
+            return;
+        }
+
+        for (const auto& v : doc.array()) {
+            const auto o = v.toObject();
+            Q_EMIT ruleReceived(static_cast<qint64>(o.value(QStringLiteral("id")).toDouble()),
+                                o.value(QStringLiteral("device_id")).toString(),
+                                o.value(QStringLiteral("sensor")).toString(),
+                                o.value(QStringLiteral("condition")).toString(),
+                                o.value(QStringLiteral("threshold")).toDouble(),
+                                o.value(QStringLiteral("severity")).toString());
+        }
+        Q_EMIT rulesLoadFinished(true, {});
+    });
+}
+
+namespace {
+QByteArray rule_json(const QString& deviceId, const QString& sensor, const QString& condition,
+                     double threshold, const QString& severity) {
+    QJsonObject o;
+    o.insert(QStringLiteral("device_id"), deviceId);
+    o.insert(QStringLiteral("sensor"), sensor);
+    o.insert(QStringLiteral("condition"), condition);
+    o.insert(QStringLiteral("threshold"), threshold);
+    o.insert(QStringLiteral("severity"), severity);
+    return QJsonDocument(o).toJson(QJsonDocument::Compact);
+}
+} // namespace
+
+void ApiClient::handle_rule_mutation(QNetworkReply* reply) {
+    ++pending_;
+    set_busy(true);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const bool ok = reply->error() == QNetworkReply::NoError && status < 400;
+        Q_EMIT ruleMutationFinished(ok, ok ? QString()
+                                           : (reply->errorString().isEmpty()
+                                                  ? QStringLiteral("HTTP %1").arg(status)
+                                                  : reply->errorString()));
+        if (--pending_ <= 0) {
+            pending_ = 0;
+            set_busy(false);
+        }
+    });
+}
+
+void ApiClient::createRule(const QString& deviceId, const QString& sensor,
+                           const QString& condition, double threshold, const QString& severity) {
+    QUrl url = base_url_;
+    url.setPath(QStringLiteral("/api/rules"));
+    QNetworkRequest req = make_request(url);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    handle_rule_mutation(nam_.post(req, rule_json(deviceId, sensor, condition, threshold, severity)));
+}
+
+void ApiClient::updateRule(qint64 id, const QString& deviceId, const QString& sensor,
+                           const QString& condition, double threshold, const QString& severity) {
+    QUrl url = base_url_;
+    url.setPath(QStringLiteral("/api/rules/%1").arg(id));
+    QNetworkRequest req = make_request(url);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    handle_rule_mutation(nam_.put(req, rule_json(deviceId, sensor, condition, threshold, severity)));
+}
+
+void ApiClient::deleteRule(qint64 id) {
+    QUrl url = base_url_;
+    url.setPath(QStringLiteral("/api/rules/%1").arg(id));
+    handle_rule_mutation(nam_.deleteResource(make_request(url)));
+}
+
 void ApiClient::acknowledgeAlarm(qint64 id) {
     const QString path = QStringLiteral("/api/alarms/%1/ack").arg(id);
     post_json(path, QByteArrayLiteral("{}"), [this, id](int status, const QByteArray&) {
