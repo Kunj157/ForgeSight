@@ -208,6 +208,7 @@ Window {
                         { label: "Devices", index: 0, icon: "grid" },
                         { label: "Alarms", index: 1, icon: "bell" },
                         { label: "History", index: 2, icon: "chart" },
+                        { label: "Rules", index: 3, icon: "gauge" },
                     ]
                     delegate: Item {
                         Layout.fillWidth: true
@@ -438,7 +439,8 @@ Window {
                     Label {
                         text: root.navIndex === 0 ? "Devices"
                             : root.navIndex === 1 ? "Alarms"
-                            : "History"
+                            : root.navIndex === 2 ? "History"
+                            : "Rules"
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontXl
                         font.bold: true
@@ -452,7 +454,9 @@ Window {
                                  ? "Live sensor readings across the plant"
                                  : root.navIndex === 1
                                  ? "Active and acknowledged alarm events"
-                                 : "Historical trends and export")
+                                 : root.navIndex === 2
+                                 ? "Historical trends and export"
+                                 : "Create and manage alarm thresholds")
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSm
                         color: root.statusHint.length > 0 ? Theme.warning : Theme.textMuted
@@ -584,6 +588,12 @@ Window {
                             font.pixelSize: Theme.fontMd
                         }
                     }
+                }
+                Loader {
+                    anchors.fill: parent
+                    active: root.navIndex === 3 || item !== null
+                    visible: root.navIndex === 3
+                    source: "RuleEditorPanel.qml"
                 }
             }
         }

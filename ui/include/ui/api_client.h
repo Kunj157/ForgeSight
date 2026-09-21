@@ -8,6 +8,8 @@
 
 #include <functional>
 
+QT_FORWARD_DECLARE_CLASS(QNetworkReply)
+
 namespace ui {
 
 /// Thin REST client used to seed models before/alongside WebSocket live data.
@@ -36,6 +38,15 @@ class ApiClient : public QObject {
                                   const QString& since);
     Q_INVOKABLE void fetchDevices();
 
+    Q_INVOKABLE void fetchRules();
+    Q_INVOKABLE void createRule(const QString& deviceId, const QString& sensor,
+                                const QString& condition, double threshold,
+                                const QString& severity);
+    Q_INVOKABLE void updateRule(qint64 id, const QString& deviceId, const QString& sensor,
+                                const QString& condition, double threshold,
+                                const QString& severity);
+    Q_INVOKABLE void deleteRule(qint64 id);
+
   Q_SIGNALS:
     void baseUrlChanged();
     void busyChanged();
@@ -52,12 +63,20 @@ class ApiClient : public QObject {
                               const QString& unit, const QString& timestamp, bool anomaly);
     void historyLoadFinished(bool ok, const QString& error);
     void deviceMetaReceived(const QString& deviceId, const QString& plant, const QString& floor);
+    void ruleReceived(qint64 id, const QString& deviceId, const QString& sensor,
+                      const QString& condition, double threshold, const QString& severity);
+    void rulesLoadFinished(bool ok, const QString& error);
+    void ruleMutationFinished(bool ok, const QString& error);
 
   private:
     void set_busy(bool busy);
     void get_json(const QString& path, const std::function<void(const QByteArray&)>& on_ok);
     void post_json(const QString& path, const QByteArray& body,
                    const std::function<void(int status, const QByteArray&)>& on_done);
+    // Common completion handling for a rule create/update/delete: emits
+    // ruleMutationFinished(ok, error) once `reply` finishes. Shared so all
+    // three verbs report success/failure identically.
+    void handle_rule_mutation(QNetworkReply* reply);
     QNetworkRequest make_request(const QUrl& url) const;
 
     QNetworkAccessManager nam_;
