@@ -122,6 +122,10 @@ The Qt desktop app and the Python simulators are **not** containerized — the d
 ```bash
 pip3 install --user paho-mqtt PyYAML
 PYTHONPATH=. python3 -m simulators.run -c simulators/config.yaml
+# optional: replay NASA C-MAPSS / UCI SECOM instead of synthetic noise
+# ./scripts/fetch-replay-data.sh
+# PYTHONPATH=. python3 -m simulators.run -c simulators/config.yaml \
+#   --replay cmapss --replay-file data/cmapss/train_FD001.txt
 ```
 
 Then launch the dashboard the same way as the native setup:
