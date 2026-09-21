@@ -272,13 +272,14 @@ void ApiClient::handle_rule_mutation(QNetworkReply* reply) {
     });
 }
 
-void ApiClient::createRule(const QString& deviceId, const QString& sensor,
-                           const QString& condition, double threshold, const QString& severity) {
+void ApiClient::createRule(const QString& deviceId, const QString& sensor, const QString& condition,
+                           double threshold, const QString& severity) {
     QUrl url = base_url_;
     url.setPath(QStringLiteral("/api/rules"));
     QNetworkRequest req = make_request(url);
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-    handle_rule_mutation(nam_.post(req, rule_json(deviceId, sensor, condition, threshold, severity)));
+    handle_rule_mutation(
+        nam_.post(req, rule_json(deviceId, sensor, condition, threshold, severity)));
 }
 
 void ApiClient::updateRule(qint64 id, const QString& deviceId, const QString& sensor,
@@ -287,7 +288,8 @@ void ApiClient::updateRule(qint64 id, const QString& deviceId, const QString& se
     url.setPath(QStringLiteral("/api/rules/%1").arg(id));
     QNetworkRequest req = make_request(url);
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-    handle_rule_mutation(nam_.put(req, rule_json(deviceId, sensor, condition, threshold, severity)));
+    handle_rule_mutation(
+        nam_.put(req, rule_json(deviceId, sensor, condition, threshold, severity)));
 }
 
 void ApiClient::deleteRule(qint64 id) {
