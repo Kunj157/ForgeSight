@@ -38,12 +38,12 @@ Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`, `FORGESIGHT_BIND`, `FOR
 | Phase | Goal | Status | Notes |
 |-------|------|--------|-------|
 | **0** | Repo & CI | Done | Postgres/libpq/Paho/spdlog all in `.github/workflows/ci.yml`, green since PR #9 |
-| **1** | Simulators | Partial | Works; no NASA C-MAPSS/SECOM replay yet |
+| **1** | Simulators | Done | Synthetic + optional C-MAPSS/SECOM replay (`--replay`, PR #68) |
 | **2** | Ingestion | Done | Periodic flush + mutex added |
 | **3** | Alarm engine | Done | DB poll + `--seed` |
 | **4** | REST/WS API | Done | Rule CRUD HTTP done (PR #9); optional API key auth + configurable bind address added in Phase 9 (PR #37) |
 | **5** | Dashboard core | Done | Plant→floor→device tree in `DeviceTreePanel.qml`, closed #5 via PR #21 (2026-07-31) |
-| **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; weak pan still open (nice-to-have) |
+| **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; drag-to-pan + cursor zoom (#66) |
 | **7** | Offline mode | Done | `OfflineCache` (SQLite) restores last-known state on cold start, persists every reading live, queues acks while offline and flushes on reconnect; staleness-aware offline indicator. Closed #23 via PR #24 (2026-07-31) |
 | **8** | Load test + packaging | Done | Docker/compose (PR #27/#29); ASan CI job with zero-leak goal, catches real bugs (PR #31); load script + measured latency/CPU numbers in README (PR #33); AppImage packaging + CI smoke-test (PR #35) |
 | **9** | First release | Done | Security baseline (API key + bind config + TLS-bypass audit, PR #37), `release.yml` (PR #39), `deploy.yml` template (PR #41), `dev`→`main` merge + `v1.0.0` tag (PR #42). See [release](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0). |
@@ -108,7 +108,7 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
    - Routed `HistoryPanel.qml` through `ApiClient.fetchHistory()` (honors `FORGESIGHT_API`) instead of a raw hardcoded `XMLHttpRequest`.
    - Safer export paths via `HistoryModel::default_export_path()` (Documents/ForgeSight, not cwd-relative).
    - **Bonus bug fixed**: QML was calling `historyModel.addPoint()/exportCsv()/exportPdf()`, which don't exist (`HistoryModel` exposes `add_point()/export_csv()/export_pdf()`) — history points were never added to the model and CSV/PDF export silently failed. Also made `pointCount` a real `Q_PROPERTY` (was a non-reactive plain invokable).
-   - Pan/brush range still open (nice-to-have, not blocking).
+   - Drag-to-pan + cursor-centered scroll-zoom + Reset view shipped in PR #66.
 
 8. **Health endpoints** ✅ — `GET /health` already existed and is tested (`ApiServerTest.HealthEndpointOk`); `/ready` not added (not needed yet, no separate readiness concept).
 
@@ -137,8 +137,9 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ### Nice-to-have (still MVP-adjacent)
 
-- NASA C-MAPSS / SECOM replay in simulators (Phase 1 stretch of plan).  
-- Simple rule editor panel in UI.  
+- NASA C-MAPSS / SECOM replay in simulators. ✅ (PR #68, issue #67)
+- Simple rule editor panel in UI. ✅ (PR #64, issue #63)
+- History chart pan/zoom. ✅ (PR #66, issue #65)
 - Stop gitignoring `AGENTS.md` / `implementation-plan.md` if the team wants them in-repo (currently local-only).
 
 ---
@@ -277,3 +278,6 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
   - **Commit 3 — `RuleEditorPanel.qml` + wiring:** create/edit form (device from the live device list, sensor, comparator `> < ≥ ≤ =`, threshold, severity) and a rules table with a color-coded severity badge + per-row Edit/Delete. The panel owns its own load lifecycle (`clear()`+`fetchRules()` on open and after every successful mutation) and connects `ruleReceived → ruleModel.add_rule` itself, so `main.cpp` deliberately does *not* wire that (doing both would double-insert). Nav item + lazy `Loader` at index 3, top-bar title/subtitle extended. Message templates are intentionally left out of the form — the engine auto-generates messages (#48) and the rule JSON doesn't carry one.
   - Verified: 96/96 `ui_tests` (10 new); live create→update→delete round-trips through the API (404 after delete, new rules picked up by the polling engine); the tab/form/list render correctly under headless software rendering (Xvfb + `QT_QUICK_BACKEND=software`, temporary env-gated `grabWindow()` hook, reverted before commit).
   - Env note for this machine: the local git remote's SSH key authenticates as a *different* GitHub account (`kunj-sentics`) than the repo owner (`Kunj157`), so `git push` over SSH is rejected; pushed over HTTPS with `git -c credential.helper='!gh auth git-credential'` (gh is authed as `Kunj157`) as a one-off, no persistent config change.
+- **2026-09-21 (later):** Closed the remaining two nice-to-haves from that list.
+  - **#65 → PR #66 (feat, history pan/zoom):** `ui::ChartZoom` (focal-preserving zoom + fractional pan, 7 tests) plus HistoryPanel wiring — drag pans the time window, wheel zooms about the pointer, Reset view restores the loaded extents. Reset is stacked above the pan overlay so it still receives clicks. Y stays fit-to-data. Merged to `dev`, all 5 CI checks green.
+  - **#67 → PR #68 (feat, C-MAPSS/SECOM replay):** `ReplayGenerator` walks a NASA C-MAPSS or UCI SECOM file instead of Gaussian noise. Documented column map onto temperature/pressure/vibration/flow/current, min-max scaled into each sensor's `[min, max]`. C-MAPSS units zip onto devices; late-life cycles and SECOM fail labels are `anomaly`. CLI: `--replay {cmapss,secom} --replay-file`. Fetch script writes gitignored `data/`. 21 new simulator tests on tiny fixtures (57/57 total). Datasets themselves are not committed.
