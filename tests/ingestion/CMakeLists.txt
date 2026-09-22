@@ -13,6 +13,7 @@ add_executable(ingestion_tests
     test_thread_pool.cpp
     test_event_bus.cpp
     test_db_writer.cpp
+    test_kafka_producer.cpp
 )
 
 target_link_libraries(ingestion_tests PRIVATE

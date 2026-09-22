@@ -1,7 +1,9 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
 
@@ -10,6 +12,7 @@
 
 #include "ingestion/db_writer.h"
 #include "ingestion/event_bus.h"
+#include "ingestion/kafka_producer.h"
 #include "ingestion/reading.h"
 #include "ingestion/reading_parser.h"
 #include "ingestion/thread_pool.h"
@@ -31,10 +34,16 @@ struct AppConfig {
     std::string db_conn_string = "host=localhost dbname=forgesight user=postgres";
     std::size_t worker_threads = 4;
     std::size_t db_batch_size = 100;
+    std::string kafka_brokers;
+    std::string kafka_topic = "forgesight.readings";
 };
 
 AppConfig parse_args(int argc, char* argv[]) {
     AppConfig cfg;
+    if (const char* env = std::getenv("FORGESIGHT_KAFKA_BROKERS"))
+        cfg.kafka_brokers = env;
+    if (const char* env = std::getenv("FORGESIGHT_KAFKA_TOPIC"))
+        cfg.kafka_topic = env;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--broker" && i + 1 < argc)
@@ -45,12 +54,18 @@ AppConfig parse_args(int argc, char* argv[]) {
             cfg.db_conn_string = argv[++i];
         else if (arg == "--workers" && i + 1 < argc)
             cfg.worker_threads = std::stoul(argv[++i]);
+        else if (arg == "--kafka-brokers" && i + 1 < argc)
+            cfg.kafka_brokers = argv[++i];
+        else if (arg == "--kafka-topic" && i + 1 < argc)
+            cfg.kafka_topic = argv[++i];
         else if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: ingestion [options]\n"
-                      << "  --broker URL      MQTT broker (default: tcp://localhost:1883)\n"
-                      << "  --topic TOPIC     MQTT topic filter (default: factory/devices/#)\n"
-                      << "  --db CONNSTR      PostgreSQL connection string\n"
-                      << "  --workers N       Worker thread count (default: 4)\n";
+                      << "  --broker URL         MQTT broker (default: tcp://localhost:1883)\n"
+                      << "  --topic TOPIC        MQTT topic filter (default: factory/devices/#)\n"
+                      << "  --db CONNSTR         PostgreSQL connection string\n"
+                      << "  --workers N          Worker thread count (default: 4)\n"
+                      << "  --kafka-brokers LST  Optional Kafka bootstrap (empty = disabled)\n"
+                      << "  --kafka-topic NAME   Kafka topic (default: forgesight.readings)\n";
             std::exit(0);
         }
     }
@@ -104,6 +119,15 @@ int main(int argc, char* argv[]) {
     EventBus event_bus;
     ReadingParser parser;
     DbWriter db_writer({cfg.db_conn_string, cfg.db_batch_size});
+
+    // Optional: fan the same readings out to Kafka so a second consumer
+    // (analytics, a spare alarm engine) can subscribe independently of MQTT.
+    std::unique_ptr<KafkaReadingSink> kafka_sink;
+    if (auto client = make_rdkafka_client(cfg.kafka_brokers)) {
+        kafka_sink = std::make_unique<KafkaReadingSink>(std::move(client), cfg.kafka_topic);
+        event_bus.subscribe([&](const ReadingEvent& ev) { kafka_sink->publish(ev.reading); });
+        spdlog::info("Kafka sink subscribed — topic={}", cfg.kafka_topic);
+    }
 
     if (!db_writer.is_connected()) {
         spdlog::error("Cannot connect to database — aborting");
