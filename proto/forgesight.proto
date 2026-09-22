@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package forgesight;
+
+// Second client surface (CLI / non-Qt). Same data as REST; not a replacement.
+
+message Empty {}
+
+message Device {
+  string id = 1;
+  string name = 2;
+  string sensor = 3;
+  string last_reading_time = 4;
+  double last_value = 5;
+  string last_unit = 6;
+  bool anomaly = 7;
+  string plant = 8;
+  string floor = 9;
+}
+
+message DeviceList {
+  repeated Device devices = 1;
+}
+
+message HistoryRequest {
+  string device_id = 1;
+  string sensor = 2;
+  string since = 3; // ISO-8601
+  int32 max_points = 4;
+}
+
+message Reading {
+  string device_id = 1;
+  string sensor = 2;
+  double value = 3;
+  string unit = 4;
+  string timestamp = 5;
+  bool anomaly = 6;
+}
+
+message ReadingList {
+  repeated Reading readings = 1;
+}
+
+message AlarmQuery {
+  bool unacknowledged_only = 1;
+}
+
+message Alarm {
+  int64 id = 1;
+  int64 rule_id = 2;
+  string device_id = 3;
+  string sensor = 4;
+  double value = 5;
+  string severity = 6;
+  string message = 7;
+  string timestamp = 8;
+  bool acknowledged = 9;
+}
+
+message AlarmList {
+  repeated Alarm alarms = 1;
+}
+
+message AckRequest {
+  int64 id = 1;
+}
+
+message AckReply {
+  bool ok = 1;
+}
+
+service ForgeSight {
+  rpc ListDevices(Empty) returns (DeviceList);
+  rpc GetHistory(HistoryRequest) returns (ReadingList);
+  rpc ListAlarms(AlarmQuery) returns (AlarmList);
+  rpc AcknowledgeAlarm(AckRequest) returns (AckReply);
+}

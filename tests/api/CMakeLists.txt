@@ -14,6 +14,7 @@ add_executable(api_tests
     test_ws_broadcaster.cpp
     test_services.cpp
     test_api_server.cpp
+    test_grpc_server.cpp
 )
 
 target_link_libraries(api_tests PRIVATE
