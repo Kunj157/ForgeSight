@@ -1,0 +1,27 @@
+# Optional Kafka overlay. Default `docker compose up` does NOT start a
+# broker — Kafka is opt-in so a compose run stays as light as it is today.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.kafka.yml up -d kafka
+#   ./build/ingestion/ingestion --db ... --kafka-brokers 127.0.0.1:9092
+#
+# Advertised as localhost:9092 for a host-side ingestion process. Wiring the
+# *containerized* ingestion service to this broker needs a second listener
+# advertised as kafka:9092 — leave that for a follow-up if it is needed.
+
+services:
+  kafka:
+    image: apache/kafka:3.8.1
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: forgesight-local-kafka

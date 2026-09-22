@@ -197,10 +197,17 @@ CPU% is percentage of one core. `api`'s cost scales with device count because `w
 
 ```
 Simulators → MQTT → Ingestion → PostgreSQL
-                      ↓
-              Alarm Engine (rules)
+                      ↓              ↓ (optional)
+              Alarm Engine     Kafka `forgesight.readings`
                       ↓
          API (REST + WebSocket) → Qt Dashboard
+```
+
+Kafka is opt-in so the default stack stays MQTT-only. Point ingestion at a broker with `--kafka-brokers` or `FORGESIGHT_KAFKA_BROKERS`; each reading is published as the same JSON the MQTT parser already accepts, keyed by `device_id`. A local broker:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.kafka.yml up -d kafka
+./build/ingestion/ingestion --kafka-brokers 127.0.0.1:9092
 ```
 
 ## Workflow

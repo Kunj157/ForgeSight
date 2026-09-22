@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         cmake make g++ pkg-config ca-certificates git \
         nlohmann-json3-dev libspdlog-dev libpq-dev \
         libpaho-mqtt-dev libpaho-mqttpp-dev \
+        librdkafka-dev \
         qt6-base-dev qt6-httpserver-dev qt6-websockets-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -43,7 +44,7 @@ RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
 FROM ubuntu:24.04 AS runtime
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpq5 libpaho-mqtt1.3 libpaho-mqttpp3-1 libspdlog1.12 ca-certificates \
+        libpq5 libpaho-mqtt1.3 libpaho-mqttpp3-1 librdkafka1 libspdlog1.12 ca-certificates \
         libqt6core6t64 libqt6network6t64 libqt6httpserver6 libqt6websockets6 \
     && rm -rf /var/lib/apt/lists/*
 
