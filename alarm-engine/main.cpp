@@ -11,6 +11,7 @@
 
 #include "alarm-engine/alarm_store.h"
 #include "alarm-engine/rule_evaluator.h"
+#include "alarm-engine/rule_reload.h"
 #include "alarm-engine/types.h"
 
 #include "ingestion/reading.h"
@@ -162,6 +163,18 @@ int main(int argc, char* argv[]) {
         std::this_thread::sleep_for(std::chrono::milliseconds(cfg.poll_interval_ms));
         if (!g_running.load())
             break;
+
+        // The Rules tab writes alarm_rules while this process is running.
+        // Reload every poll so creates, edits, and deletes apply without a
+        // restart. A failed reload keeps the previous set: the readings
+        // fetched below are not revisited, so dropping the rules here would
+        // skip alarms for them permanently.
+        auto loaded = store.try_load_rules();
+        if (!loaded) {
+            spdlog::warn("Failed to reload alarm rules; keeping the previous {} rules",
+                         rules.size());
+        }
+        rules = rules_for_poll(std::move(loaded), std::move(rules));
 
         auto readings = fetch_readings_since(conn, last_check);
         if (readings.empty())

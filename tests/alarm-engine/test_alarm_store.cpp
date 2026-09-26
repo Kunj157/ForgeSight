@@ -2,6 +2,8 @@
 
 #include <libpq-fe.h>
 
+#include <algorithm>
+
 #include "alarm-engine/alarm_store.h"
 #include "alarm-engine/types.h"
 
@@ -96,6 +98,41 @@ TEST_F(AlarmStoreTest, AddAndLoadRule) {
     EXPECT_GE(rules.size(), 1u);
     EXPECT_EQ(rules.back().device_id, "pump-001");
     EXPECT_EQ(rules.back().sensor, "temperature");
+}
+
+TEST_F(AlarmStoreTest, TryLoadRulesSeesThresholdUpdate) {
+    AlarmStoreConfig cfg{conn_str};
+    AlarmStore store(cfg);
+    ASSERT_TRUE(store.is_connected());
+
+    Rule r = make_rule();
+    r.device_id = "reload-test";
+    r.sensor = "vibration";
+    r.threshold = 80.0;
+    ASSERT_TRUE(store.add_rule(r));
+
+    auto first = store.try_load_rules();
+    ASSERT_TRUE(first.has_value());
+    const Rule* newest = nullptr;
+    for (const auto& rule : *first) {
+        if (rule.device_id == "reload-test" && rule.sensor == "vibration" &&
+            (newest == nullptr || rule.id > newest->id)) {
+            newest = &rule;
+        }
+    }
+    ASSERT_NE(newest, nullptr);
+    EXPECT_DOUBLE_EQ(newest->threshold, 80.0);
+
+    Rule edited = *newest;
+    edited.threshold = 42.5;
+    ASSERT_TRUE(store.update_rule(edited));
+
+    auto second = store.try_load_rules();
+    ASSERT_TRUE(second.has_value());
+    auto updated = std::find_if(second->begin(), second->end(),
+                                [&](const Rule& rule) { return rule.id == edited.id; });
+    ASSERT_NE(updated, second->end());
+    EXPECT_DOUBLE_EQ(updated->threshold, 42.5);
 }
 
 TEST_F(AlarmStoreTest, DeleteRule) {
