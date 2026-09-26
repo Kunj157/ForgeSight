@@ -2,6 +2,7 @@
 #include <chrono>
 #include <csignal>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -10,11 +11,10 @@
 #include <spdlog/spdlog.h>
 
 #include "alarm-engine/alarm_store.h"
+#include "alarm-engine/reading_cursor.h"
 #include "alarm-engine/rule_evaluator.h"
 #include "alarm-engine/rule_reload.h"
 #include "alarm-engine/types.h"
-
-#include "ingestion/reading.h"
 
 using namespace alarm_engine;
 
@@ -84,39 +84,6 @@ void seed_default_rules(AlarmStore& store) {
     spdlog::info("Seeded {} default rules", count);
 }
 
-std::vector<ingestion::Reading> fetch_readings_since(PGconn* conn, const std::string& since) {
-
-    std::vector<ingestion::Reading> readings;
-    const char* params[1] = {since.c_str()};
-    int lens[1] = {static_cast<int>(since.size())};
-    int fmts[1] = {0};
-
-    auto* res = PQexecParams(conn,
-                             "SELECT device_id, sensor, value, unit, timestamp::text, anomaly "
-                             "FROM readings WHERE timestamp > $1 ORDER BY timestamp",
-                             1, nullptr, params, lens, fmts, 0);
-
-    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-        PQclear(res);
-        return readings;
-    }
-
-    int rows = PQntuples(res);
-    for (int i = 0; i < rows; ++i) {
-        ingestion::Reading r;
-        r.device_id = PQgetvalue(res, i, 0);
-        r.sensor = PQgetvalue(res, i, 1);
-        r.value = std::stod(PQgetvalue(res, i, 2));
-        r.unit = PQgetvalue(res, i, 3);
-        r.timestamp = PQgetvalue(res, i, 4);
-        r.anomaly = (PQgetvalue(res, i, 5)[0] == 't');
-        readings.push_back(std::move(r));
-    }
-
-    PQclear(res);
-    return readings;
-}
-
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -149,20 +116,22 @@ int main(int argc, char* argv[]) {
     spdlog::info("Alarm engine started with {} rules (poll every {}ms)", rules.size(),
                  cfg.poll_interval_ms);
 
-    std::string last_check;
-    {
-        auto* res = PQexec(conn, "SELECT COALESCE(MAX(timestamp)::text, '1970-01-01T00:00:00Z') "
-                                 "FROM readings");
-        if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0) {
-            last_check = PQgetvalue(res, 0, 0);
-        }
-        PQclear(res);
-    }
+    // Id, not device timestamp. Rows that share a timestamp can commit after
+    // the poll has already passed that timestamp; those rows are still new.
+    // A failed read stays unset so we retry next poll instead of replaying
+    // history from id 0.
+    std::optional<std::int64_t> last_id = catch_up_reading_id(conn);
 
     while (g_running.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(cfg.poll_interval_ms));
         if (!g_running.load())
             break;
+
+        if (!last_id) {
+            last_id = catch_up_reading_id(conn);
+            if (!last_id)
+                continue;
+        }
 
         // The Rules tab writes alarm_rules while this process is running.
         // Reload every poll so creates, edits, and deletes apply without a
@@ -176,19 +145,20 @@ int main(int argc, char* argv[]) {
         }
         rules = rules_for_poll(std::move(loaded), std::move(rules));
 
-        auto readings = fetch_readings_since(conn, last_check);
+        auto readings = fetch_readings_after(conn, *last_id);
         if (readings.empty())
             continue;
 
         int alarm_count = 0;
-        for (const auto& r : readings) {
+        for (const auto& row : readings) {
+            const auto& r = row.reading;
             auto alarms =
                 evaluator.evaluate_all(rules, r.device_id, r.sensor, r.value, r.timestamp);
             for (const auto& a : alarms) {
                 if (store.write_alarm(a))
                     ++alarm_count;
             }
-            last_check = r.timestamp;
+            last_id = row.id;
         }
 
         if (alarm_count > 0) {

@@ -6,6 +6,7 @@ add_library(alarm_engine_lib STATIC
     src/types.cpp
     src/rule_evaluator.cpp
     src/alarm_store.cpp
+    src/reading_cursor.cpp
 )
 
 target_include_directories(alarm_engine_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
