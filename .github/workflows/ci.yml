@@ -24,7 +24,7 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -33,6 +33,8 @@ jobs:
             cmake g++ pkg-config \
             nlohmann-json3-dev libspdlog-dev libpq-dev \
             libpaho-mqtt-dev libpaho-mqttpp-dev \
+            librdkafka-dev \
+            libgrpc++-dev protobuf-compiler-grpc libprotobuf-dev protobuf-compiler \
             libqt6sql6-sqlite \
             qt6-base-dev qt6-declarative-dev qt6-charts-dev \
             qt6-httpserver-dev qt6-websockets-dev \
@@ -94,7 +96,7 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -103,6 +105,8 @@ jobs:
             cmake g++ pkg-config \
             nlohmann-json3-dev libspdlog-dev libpq-dev \
             libpaho-mqtt-dev libpaho-mqttpp-dev \
+            librdkafka-dev \
+            libgrpc++-dev protobuf-compiler-grpc libprotobuf-dev protobuf-compiler \
             libqt6sql6-sqlite \
             qt6-base-dev qt6-declarative-dev qt6-charts-dev \
             qt6-httpserver-dev qt6-websockets-dev \
@@ -140,7 +144,7 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install clang-format
         run: |
@@ -156,7 +160,7 @@ jobs:
   simulators-test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: python3 -m pip install --user pytest paho-mqtt PyYAML
@@ -167,7 +171,7 @@ jobs:
   docker:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Only `ingestion` declares `build:` in docker-compose.yml (the other
       # two services reuse that same image via `image:` + entrypoint

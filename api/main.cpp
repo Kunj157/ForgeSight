@@ -5,7 +5,12 @@
 #include <libpq-fe.h>
 #include <spdlog/spdlog.h>
 
+#include <memory>
+
 #include "api/api_server.h"
+#include "api/device_service.h"
+#include "api/grpc_server.h"
+#include "api/rule_service.h"
 #include "api/ws_broadcaster.h"
 
 namespace {
@@ -45,6 +50,11 @@ int main(int argc, char* argv[]) {
                       "Empty disables auth (default; fine for local dev only).",
                       "key",
                       ""});
+    parser.addOption({{"g", "grpc-port"},
+                      "gRPC listen port (0 disables). Falls back to FORGESIGHT_GRPC_PORT. "
+                      "Off by default so the live stack stays REST/WS-only.",
+                      "port",
+                      "0"});
     parser.process(app);
 
     quint16 httpPort = parser.value("port").toUShort();
@@ -65,6 +75,12 @@ int main(int argc, char* argv[]) {
                      "unauthenticated. Set --api-key or FORGESIGHT_API_KEY for any non-local "
                      "deployment.");
     }
+    quint16 grpcPort = parser.value("grpc-port").toUShort();
+    if (grpcPort == 0) {
+        const auto envPort = qEnvironmentVariable("FORGESIGHT_GRPC_PORT");
+        if (!envPort.isEmpty())
+            grpcPort = envPort.toUShort();
+    }
 
     auto* conn = connect_db(conn_str);
 
@@ -78,6 +94,34 @@ int main(int argc, char* argv[]) {
 
     spdlog::info("REST API:  http://127.0.0.1:{}", server.port());
     spdlog::info("WebSocket: ws://127.0.0.1:{}", server.wsPort());
+
+    // Own PGconn: libpq connections are not thread-safe, and the gRPC
+    // completion queue runs on a different thread than Qt's HTTP event loop.
+    std::unique_ptr<api::DeviceService> grpc_devices;
+    std::unique_ptr<api::RuleService> grpc_rules;
+    std::unique_ptr<api::GrpcServer> grpc;
+    void* grpc_conn = nullptr;
+    if (grpcPort > 0) {
+        grpc_conn = connect_db(conn_str);
+        if (!grpc_conn) {
+            if (conn)
+                PQfinish(static_cast<PGconn*>(conn));
+            return 1;
+        }
+        grpc_devices = std::make_unique<api::DeviceService>(grpc_conn);
+        grpc_rules = std::make_unique<api::RuleService>(grpc_conn);
+        grpc = std::make_unique<api::GrpcServer>(*grpc_devices, *grpc_rules, apiKey);
+        const std::string grpc_bind =
+            parser.value("bind").toStdString() + ":" + std::to_string(grpcPort);
+        if (!grpc->start(grpc_bind)) {
+            spdlog::error("Failed to start gRPC server on {}", grpc_bind);
+            PQfinish(static_cast<PGconn*>(grpc_conn));
+            if (conn)
+                PQfinish(static_cast<PGconn*>(conn));
+            return 1;
+        }
+        spdlog::info("gRPC:      {}:{}", parser.value("bind").toStdString(), grpc->port());
+    }
 
     return app.exec();
 }

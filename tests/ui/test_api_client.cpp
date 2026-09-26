@@ -41,6 +41,14 @@ class FakeHttpServer : public QObject {
                         body = history_body_;
                     } else if (req.contains("GET /api/devices")) {
                         body = devices_body_;
+                    } else if (req.contains("GET /api/rules")) {
+                        body = rules_body_;
+                    } else if (req.contains("POST /api/rules")) {
+                        body = QByteArrayLiteral("{\"id\":10,\"ok\":true}");
+                        status = 201;
+                    } else if (req.contains("PUT /api/rules/") ||
+                               req.contains("DELETE /api/rules/")) {
+                        body = QByteArrayLiteral("{\"ok\":true}");
                     }
 
                     const QByteArray resp = "HTTP/1.1 " + QByteArray::number(status) +
@@ -70,6 +78,8 @@ class FakeHttpServer : public QObject {
         R"({"device_id":"pump-001","sensor":"temperature","value":97.0,"unit":"C","timestamp":"2026-07-30T09:01:00Z","anomaly":true}])";
     QByteArray devices_body_ =
         R"([{"id":"pump-001","name":"pump-001","sensor":"temperature","last_reading_time":"2026-07-30T10:00:00Z","last_value":72.5,"last_unit":"C","anomaly":false,"plant":"Plant A","floor":"Floor 1"}])";
+    QByteArray rules_body_ =
+        R"([{"id":5,"device_id":"pump-001","sensor":"temperature","condition":"gt","threshold":90.0,"severity":"critical"}])";
     int ack_status_ = 200;
     QByteArray last_request_;
     QByteArray last_history_request_;
@@ -205,4 +215,86 @@ TEST_F(ApiClientTest, AcknowledgeAlarmPostsAndEmitsSuccess) {
     ASSERT_EQ(spy.size(), 1);
     EXPECT_EQ(spy[0][0].toLongLong(), 42);
     EXPECT_TRUE(server.last_request_.contains("POST /api/alarms/42/ack"));
+}
+
+TEST_F(ApiClientTest, FetchRulesEmitsRuleThenFinished) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+
+    QSignalSpy ruleSpy(&client, &ui::ApiClient::ruleReceived);
+    QSignalSpy finishedSpy(&client, &ui::ApiClient::rulesLoadFinished);
+
+    client.fetchRules();
+
+    ASSERT_TRUE(finishedSpy.wait(2000));
+    ASSERT_EQ(ruleSpy.size(), 1);
+    EXPECT_EQ(ruleSpy[0][0].toLongLong(), 5);
+    EXPECT_EQ(ruleSpy[0][1].toString(), "pump-001");
+    EXPECT_EQ(ruleSpy[0][2].toString(), "temperature");
+    EXPECT_EQ(ruleSpy[0][3].toString(), "gt");
+    EXPECT_DOUBLE_EQ(ruleSpy[0][4].toDouble(), 90.0);
+    EXPECT_EQ(ruleSpy[0][5].toString(), "critical");
+
+    ASSERT_EQ(finishedSpy.size(), 1);
+    EXPECT_TRUE(finishedSpy[0][0].toBool());
+    EXPECT_TRUE(server.last_request_.contains("GET /api/rules"));
+}
+
+TEST_F(ApiClientTest, CreateRulePostsJsonAndReportsSuccess) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+
+    QSignalSpy doneSpy(&client, &ui::ApiClient::ruleMutationFinished);
+    client.createRule("pump-001", "temperature", "gt", 90.0, "critical");
+
+    ASSERT_TRUE(doneSpy.wait(2000));
+    ASSERT_EQ(doneSpy.size(), 1);
+    EXPECT_TRUE(doneSpy[0][0].toBool());
+    EXPECT_TRUE(server.last_request_.contains("POST /api/rules"));
+    EXPECT_TRUE(server.last_request_.contains("\"device_id\":\"pump-001\""));
+    EXPECT_TRUE(server.last_request_.contains("\"condition\":\"gt\""));
+    EXPECT_TRUE(server.last_request_.contains("\"severity\":\"critical\""));
+}
+
+TEST_F(ApiClientTest, UpdateRulePutsToRuleId) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+
+    QSignalSpy doneSpy(&client, &ui::ApiClient::ruleMutationFinished);
+    client.updateRule(5, "pump-001", "temperature", "lt", 12.5, "warning");
+
+    ASSERT_TRUE(doneSpy.wait(2000));
+    ASSERT_EQ(doneSpy.size(), 1);
+    EXPECT_TRUE(doneSpy[0][0].toBool());
+    EXPECT_TRUE(server.last_request_.contains("PUT /api/rules/5"));
+    EXPECT_TRUE(server.last_request_.contains("\"condition\":\"lt\""));
+}
+
+TEST_F(ApiClientTest, DeleteRuleSendsDeleteToRuleId) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+
+    QSignalSpy doneSpy(&client, &ui::ApiClient::ruleMutationFinished);
+    client.deleteRule(5);
+
+    ASSERT_TRUE(doneSpy.wait(2000));
+    ASSERT_EQ(doneSpy.size(), 1);
+    EXPECT_TRUE(doneSpy[0][0].toBool());
+    EXPECT_TRUE(server.last_request_.contains("DELETE /api/rules/5"));
+}
+
+TEST_F(ApiClientTest, RuleMutationsIncludeApiKeyHeader) {
+    FakeHttpServer server;
+    ui::ApiClient client;
+    client.set_base_url(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server.port())));
+    client.set_api_key(QStringLiteral("secret123"));
+
+    QSignalSpy doneSpy(&client, &ui::ApiClient::ruleMutationFinished);
+    client.createRule("pump-001", "temperature", "gt", 90.0, "critical");
+    ASSERT_TRUE(doneSpy.wait(2000));
+    EXPECT_TRUE(server.last_request_.contains("X-Api-Key: secret123"));
 }

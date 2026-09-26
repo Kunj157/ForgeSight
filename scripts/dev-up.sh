@@ -9,6 +9,7 @@ LOG_DIR="${FORGESIGHT_LOG_DIR:-/tmp/forgesight-logs}"
 DB_CONN="${FORGESIGHT_DB:-dbname=forgesight}"
 BIND="${FORGESIGHT_BIND:-0.0.0.0}"
 API_KEY="${FORGESIGHT_API_KEY:-}"
+GRPC_PORT="${FORGESIGHT_GRPC_PORT:-0}"
 PID_FILE="$LOG_DIR/pids"
 
 mkdir -p "$LOG_DIR"
@@ -50,6 +51,7 @@ echo "Starting services…"
 
 api_args=(--database "$DB_CONN" --port 8080 --ws-port 8081 --bind "$BIND")
 [[ -n "$API_KEY" ]] && api_args+=(--api-key "$API_KEY")
+[[ "$GRPC_PORT" != "0" ]] && api_args+=(--grpc-port "$GRPC_PORT")
 
 "$BUILD/api/api" "${api_args[@]}" \
   >"$LOG_DIR/api.log" 2>&1 &
@@ -77,6 +79,9 @@ sleep 1
 echo
 echo "REST:       http://127.0.0.1:8080/api/devices"
 echo "WebSocket:  ws://127.0.0.1:8081"
+if [[ "$GRPC_PORT" != "0" ]]; then
+  echo "gRPC:       $BIND:$GRPC_PORT"
+fi
 echo "UI:         $BUILD/ui/app/factory-pulse"
 echo
 echo "Tail logs:  tail -f $LOG_DIR/*.log"

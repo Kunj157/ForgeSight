@@ -55,6 +55,7 @@ Optional env overrides:
 | `FORGESIGHT_WS` | `ws://127.0.0.1:8081` |
 | `FORGESIGHT_BIND` | `0.0.0.0` — interface the `api` binary listens on |
 | `FORGESIGHT_API_KEY` | unset — see [Security](#security) below |
+| `FORGESIGHT_GRPC_PORT` | unset / `0` — gRPC listener off; see [Architecture](#architecture-mvp) |
 
 Stop services:
 
@@ -67,7 +68,7 @@ Stop services:
 The `api` binary is unauthenticated and bound to all interfaces (`0.0.0.0`) by default so local development needs zero extra setup. **Neither is safe for a deployment reachable outside your own machine** — enable both before exposing it:
 
 - **`--bind <address>` / `FORGESIGHT_BIND`** — restrict the HTTP/WS listeners to one interface, e.g. `127.0.0.1` to only accept connections proxied from the same host, or a private LAN IP.
-- **`--api-key <key>` / `FORGESIGHT_API_KEY`** — require a matching `X-Api-Key` header on every `/api/*` request and a matching `?api_key=` query parameter on every WebSocket connection. `/health` always stays open (liveness checks shouldn't need credentials). Generate one with `openssl rand -hex 32`.
+- **`--api-key <key>` / `FORGESIGHT_API_KEY`** — require a matching `X-Api-Key` header on every `/api/*` request and a matching `?api_key=` query parameter on every WebSocket connection. The same key is required as `x-api-key` metadata on every gRPC call when `--grpc-port` is enabled. `/health` always stays open (liveness checks shouldn't need credentials). Generate one with `openssl rand -hex 32`.
 
 ```bash
 export FORGESIGHT_API_KEY="$(openssl rand -hex 32)"
@@ -122,6 +123,10 @@ The Qt desktop app and the Python simulators are **not** containerized — the d
 ```bash
 pip3 install --user paho-mqtt PyYAML
 PYTHONPATH=. python3 -m simulators.run -c simulators/config.yaml
+# optional: replay NASA C-MAPSS / UCI SECOM instead of synthetic noise
+# ./scripts/fetch-replay-data.sh
+# PYTHONPATH=. python3 -m simulators.run -c simulators/config.yaml \
+#   --replay cmapss --replay-file data/cmapss/train_FD001.txt
 ```
 
 Then launch the dashboard the same way as the native setup:
@@ -193,10 +198,25 @@ CPU% is percentage of one core. `api`'s cost scales with device count because `w
 
 ```
 Simulators → MQTT → Ingestion → PostgreSQL
-                      ↓
-              Alarm Engine (rules)
+                      ↓              ↓ (optional)
+              Alarm Engine     Kafka `forgesight.readings`
                       ↓
          API (REST + WebSocket) → Qt Dashboard
+              ↓ (optional `--grpc-port`)
+         gRPC (`ListDevices` / `GetHistory` / `ListAlarms` / `AcknowledgeAlarm`)
+```
+
+Kafka is opt-in so the default stack stays MQTT-only. Point ingestion at a broker with `--kafka-brokers` or `FORGESIGHT_KAFKA_BROKERS`; each reading is published as the same JSON the MQTT parser already accepts, keyed by `device_id`. A local broker:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.kafka.yml up -d kafka
+./build/ingestion/ingestion --kafka-brokers 127.0.0.1:9092
+```
+
+gRPC is a second client surface on the same `api` binary (CLI / scripts), not a replacement for REST/WS. It stays off unless `--grpc-port` or `FORGESIGHT_GRPC_PORT` is set. The proto is `proto/forgesight.proto`.
+
+```bash
+./build/api/api --grpc-port 50051 --api-key "$FORGESIGHT_API_KEY"
 ```
 
 ## Workflow

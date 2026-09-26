@@ -20,6 +20,8 @@ add_executable(ui_tests
     test_offline_cache.cpp
     test_time_format.cpp
     test_series_stats.cpp
+    test_rule_model.cpp
+    test_chart_zoom.cpp
 )
 
 target_link_libraries(ui_tests PRIVATE

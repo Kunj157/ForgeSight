@@ -275,8 +275,20 @@ void ApiServer::setupRoutes() {
             since = "1970-01-01T00:00:00Z";
         }
 
+        // Cap the number of points returned so a wide range doesn't ship tens
+        // of thousands of rows (which froze the chart). Clients may override
+        // via ?max_points=; default matches DeviceService::get_history.
+        int maxPoints = 1000;
+        const QString maxPointsParam = query.queryItemValue("max_points");
+        if (!maxPointsParam.isEmpty()) {
+            bool ok = false;
+            const int parsed = maxPointsParam.toInt(&ok);
+            if (ok)
+                maxPoints = parsed;
+        }
+
         auto readings = deviceService_.get_history(deviceId.toStdString(), sensor.toStdString(),
-                                                   since.toStdString());
+                                                   since.toStdString(), maxPoints);
 
         json j = json::array();
         for (const auto& r : readings) {

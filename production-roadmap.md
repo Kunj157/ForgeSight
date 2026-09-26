@@ -1,10 +1,10 @@
 # ForgeSight — Production Roadmap & Session Handoff
 
-**Last updated:** 2026-08-05 (Phase 9 **fully done** — items 18-21 closed via PRs #37, #39, #41, #42; **`v1.0.0` tagged and released**)  
-**Branch:** `dev` (released to `main`, tag `v1.0.0`)  
-**Open PRs:** none — #13, #15, #17, #20, #21, #24, #27, #29, #31, #33, #35, #37, #39, #41, #42 all **MERGED**  
-**Open issues:** none from this roadmap's P0-P4 list (#10 docs-sync issue still open, tracks this file itself; #28 closed by #29)  
-**Release:** [`v1.0.0`](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0) — AppImage + `ghcr.io/kunj157/forgesight-backend:v1.0.0`/`:latest`, published automatically by `release.yml` on tag push.  
+**Last updated:** 2026-09-20 (**`v1.1.0` released** — 2 production fixes + 3 UI features on top of the v1.0.0 MVP; see the v1.1.0 progress-log entry below)  
+**Branch:** `dev` (released to `main`, latest tag `v1.1.0`)  
+**Open PRs:** none from this roadmap — everything through PR #55 (the `dev`→`main` release) **MERGED**  
+**Open issues:** #10 (this doc's standing docs-sync tracker) remains open by design  
+**Release:** [`v1.1.0`](https://github.com/Kunj157/ForgeSight/releases/tag/v1.1.0) — AppImage + `ghcr.io/kunj157/forgesight-backend:v1.1.0`/`:latest`, published automatically by `release.yml` on tag push. Previous: [`v1.0.0`](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0).  
 
 Use this file as the source of truth for “what’s done / what’s next” in a new chat session.
 
@@ -38,12 +38,12 @@ Env: `FORGESIGHT_DB`, `FORGESIGHT_API`, `FORGESIGHT_WS`, `FORGESIGHT_BIND`, `FOR
 | Phase | Goal | Status | Notes |
 |-------|------|--------|-------|
 | **0** | Repo & CI | Done | Postgres/libpq/Paho/spdlog all in `.github/workflows/ci.yml`, green since PR #9 |
-| **1** | Simulators | Partial | Works; no NASA C-MAPSS/SECOM replay yet |
+| **1** | Simulators | Done | Synthetic + optional C-MAPSS/SECOM replay (`--replay`, PR #68) |
 | **2** | Ingestion | Done | Periodic flush + mutex added |
 | **3** | Alarm engine | Done | DB poll + `--seed` |
 | **4** | REST/WS API | Done | Rule CRUD HTTP done (PR #9); optional API key auth + configurable bind address added in Phase 9 (PR #37) |
 | **5** | Dashboard core | Done | Plant→floor→device tree in `DeviceTreePanel.qml`, closed #5 via PR #21 (2026-07-31) |
-| **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; weak pan still open (nice-to-have) |
+| **6** | History + export | Done | Routed through `ApiClient`/`FORGESIGHT_API`; export path + model bugs fixed; drag-to-pan + cursor zoom (#66) |
 | **7** | Offline mode | Done | `OfflineCache` (SQLite) restores last-known state on cold start, persists every reading live, queues acks while offline and flushes on reconnect; staleness-aware offline indicator. Closed #23 via PR #24 (2026-07-31) |
 | **8** | Load test + packaging | Done | Docker/compose (PR #27/#29); ASan CI job with zero-leak goal, catches real bugs (PR #31); load script + measured latency/CPU numbers in README (PR #33); AppImage packaging + CI smoke-test (PR #35) |
 | **9** | First release | Done | Security baseline (API key + bind config + TLS-bypass audit, PR #37), `release.yml` (PR #39), `deploy.yml` template (PR #41), `dev`→`main` merge + `v1.0.0` tag (PR #42). See [release](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0). |
@@ -108,7 +108,7 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
    - Routed `HistoryPanel.qml` through `ApiClient.fetchHistory()` (honors `FORGESIGHT_API`) instead of a raw hardcoded `XMLHttpRequest`.
    - Safer export paths via `HistoryModel::default_export_path()` (Documents/ForgeSight, not cwd-relative).
    - **Bonus bug fixed**: QML was calling `historyModel.addPoint()/exportCsv()/exportPdf()`, which don't exist (`HistoryModel` exposes `add_point()/export_csv()/export_pdf()`) — history points were never added to the model and CSV/PDF export silently failed. Also made `pointCount` a real `Q_PROPERTY` (was a non-reactive plain invokable).
-   - Pan/brush range still open (nice-to-have, not blocking).
+   - Drag-to-pan + cursor-centered scroll-zoom + Reset view shipped in PR #66.
 
 8. **Health endpoints** ✅ — `GET /health` already existed and is tested (`ApiServerTest.HealthEndpointOk`); `/ready` not added (not needed yet, no separate readiness concept).
 
@@ -137,8 +137,9 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 
 ### Nice-to-have (still MVP-adjacent)
 
-- NASA C-MAPSS / SECOM replay in simulators (Phase 1 stretch of plan).  
-- Simple rule editor panel in UI.  
+- NASA C-MAPSS / SECOM replay in simulators. ✅ (PR #68, issue #67)
+- Simple rule editor panel in UI. ✅ (PR #64, issue #63)
+- History chart pan/zoom. ✅ (PR #66, issue #65)
 - Stop gitignoring `AGENTS.md` / `implementation-plan.md` if the team wants them in-repo (currently local-only).
 
 ---
@@ -262,3 +263,21 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
   - **#42 (`dev` → `main`, item 18):** With items 19-21 merged and `dev` green, opened a PR from `dev` (99 commits ahead of `main`'s single initial commit) straight into `main` and merged it — `ci.yml` only triggers on PRs targeting `dev`, so this PR itself showed no checks, which is expected since every one of those 99 commits already had to pass full CI as a PR into `dev` first. Then tagged `v1.0.0` on `main` and pushed the tag, which fired `release.yml` for real: `docker-image` (2m12s) and `appimage` (2m29s) both passed, then `publish-release` created [the `v1.0.0` release](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0) with the AppImage attached and the GHCR image noted in the body — first actual end-to-end validation of the release pipeline, and it worked on the first attempt.
   - Recurring repo quirk confirmed again: "Closes #n" didn't auto-close #36/#38/#40 on merge — closed all three manually, as every prior session's PRs also needed.
   - **The MVP defined in `production-roadmap.md` is now fully complete.** Every item in the "Definition of production-grade MVP" checklist is checked. Remaining work is either the "Nice-to-have" list above or stretch phases (Kafka/Redpanda, gRPC, camera/RTSP, Prometheus, plugins) — none of which should start without first confirming scope with the user.
+- **2026-09-20:** First release since the MVP — **`v1.1.0` cut and published** (PR #55 `dev`→`main`, tag `v1.1.0`; `release.yml` built the AppImage + GHCR image and published the release on the first try). Fixed two production-blocking dashboard-bootstrap bugs that only surfaced under real data volume, plus three UI polish passes. All via the usual issue→branch→TDD→PR flow, CI green on each.
+  - **#45 → PR #46 (fix, bug A):** `/api/devices` and `/api/readings/latest` (both `DeviceService::list_devices()`) were doing a full-table Seq Scan + on-disk Sort of `readings` (~5.3s each on ~333k rows). On the single-threaded `QHttpServer` this blocked the event loop, so concurrent bootstrap requests (notably `/api/alarms`) timed out and the dashboard loaded empty. Fix: added `idx_readings_latest (device_id, sensor, timestamp DESC)` + `idx_readings_timestamp` in `DbWriter::ensure_table()`, and rewrote `list_devices()` to run the `DISTINCT ON` on `readings` alone *before* the `device_metadata` LEFT JOIN so the DESC index satisfies the ordering (no Sort). `EXPLAIN ANALYZE`: ~5.3s → ~0.3s; verified live (concurrent curls that used to hang now finish < 1s). Index-existence tests added in `test_db_writer.cpp`.
+  - **#47 → PR #48 (fix, bug B):** every alarm rendered with a blank MESSAGE. `RuleEvaluator::format_message()` returned `rule.message_template` verbatim; rules seeded before templates existed (or created via the API without one) have an empty template. Now falls back to a condition-aware auto message (`<device> <sensor> value <v> exceeded/below/reached threshold <t>`). Verified live: new alarms carry messages; historical rows are intentionally not rewritten.
+  - **#49 → PR #50 (feat):** `ui::TimeFormat` (tested) — cards show "Updated 5s ago", alarm rows show `HH:mm:ss · 5m ago` instead of raw ISO. Parses both ISO 8601 and Postgres `timestamptz::text` (short `+02` or full `+02:00` offsets).
+  - **#51 → PR #52 (feat):** `ui::SeriesStats` (tested) drives a device-card trend chip (▲/▼ vs previous sample) + a `min · max` range line; larger sparkline.
+  - **#53 → PR #54 (feat):** history panel's raw ISO "from" field replaced with a read-only "From MMM d, HH:mm" pill driven by the range presets, plus a min/max readout. Added `ui::TimeFormat::dateTimeLabel()`.
+  - Post-release housekeeping (same day): **#56 → PR #57** added a regression test that guards bug A's fix — seeds volume and asserts the latest-reading `DISTINCT ON` is served by `idx_readings_latest` with no Sort (asserted with `enable_seqscan=off` so it's deterministic on small CI tables). Also bumped the stale root `CMakeLists.txt` `project(VERSION)` 0.1.0 → 1.1.0 and the GitHub Actions (`checkout@v5`, `upload/download-artifact@v7`) off deprecated Node 20.
+  - Repo quirk confirmed again: "Closes #n" didn't auto-close #45/#47/#49/#51/#53/#56 on merge — closed them manually, as every prior session's PRs also needed.
+  - **Still all-green, no required-scope work outstanding.** Next candidates remain the "Nice-to-have" list (in-app rule editor, history chart pan/zoom, C-MAPSS/SECOM replay) or a stretch phase — scope to confirm with the user first.
+- **2026-09-21:** Started on the "Nice-to-have" list — **#63 → PR #64: in-app alarm rule editor (a new Rules tab).** The backend already had full rule CRUD (`GET/POST/PUT/DELETE /api/rules`) and the alarm engine polls the DB, so created/edited rules take effect with no restart; this closes the loop by letting users manage rules from the dashboard instead of hand-curling the API. Full vertical slice, TDD where unit-testable, 3 sequential commits:
+  - **Commit 1 — `ui::RuleModel`:** a `QAbstractListModel` read-through cache of `GET /api/rules` (device, sensor, condition, threshold, severity). Roles are exposed by name and there's a `get(row)->QVariantMap` invokable so QML can load a whole rule into the edit form *without* referencing the role enum — the same not-`Q_ENUM`'d-enum trap that silently sent empty device ids on the history panel (#60). 5 tests (empty, add/data/roleNames, get incl. out-of-range, clear).
+  - **Commit 2 — `ApiClient` rule CRUD:** `fetchRules/createRule/updateRule/deleteRule`. `fetchRules` deliberately does *not* reuse `get_json()` (that helper emits `bootstrapFinished` when its pending counter drains, which would fire spuriously off the Rules tab) — rules get their own `ruleReceived`/`rulesLoadFinished` lifecycle. Create/update/delete share a `handle_rule_mutation()` → `ruleMutationFinished(ok,error)`. 5 tests via the existing `FakeHttpServer` (fetch emits+finishes, POST body, PUT to /id, DELETE /id, X-Api-Key on mutations).
+  - **Commit 3 — `RuleEditorPanel.qml` + wiring:** create/edit form (device from the live device list, sensor, comparator `> < ≥ ≤ =`, threshold, severity) and a rules table with a color-coded severity badge + per-row Edit/Delete. The panel owns its own load lifecycle (`clear()`+`fetchRules()` on open and after every successful mutation) and connects `ruleReceived → ruleModel.add_rule` itself, so `main.cpp` deliberately does *not* wire that (doing both would double-insert). Nav item + lazy `Loader` at index 3, top-bar title/subtitle extended. Message templates are intentionally left out of the form — the engine auto-generates messages (#48) and the rule JSON doesn't carry one.
+  - Verified: 96/96 `ui_tests` (10 new); live create→update→delete round-trips through the API (404 after delete, new rules picked up by the polling engine); the tab/form/list render correctly under headless software rendering (Xvfb + `QT_QUICK_BACKEND=software`, temporary env-gated `grabWindow()` hook, reverted before commit).
+  - Env note for this machine: the local git remote's SSH key authenticates as a *different* GitHub account (`kunj-sentics`) than the repo owner (`Kunj157`), so `git push` over SSH is rejected; pushed over HTTPS with `git -c credential.helper='!gh auth git-credential'` (gh is authed as `Kunj157`) as a one-off, no persistent config change.
+- **2026-09-21 (later):** Closed the remaining two nice-to-haves from that list.
+  - **#65 → PR #66 (feat, history pan/zoom):** `ui::ChartZoom` (focal-preserving zoom + fractional pan, 7 tests) plus HistoryPanel wiring — drag pans the time window, wheel zooms about the pointer, Reset view restores the loaded extents. Reset is stacked above the pan overlay so it still receives clicks. Y stays fit-to-data. Merged to `dev`, all 5 CI checks green.
+  - **#67 → PR #68 (feat, C-MAPSS/SECOM replay):** `ReplayGenerator` walks a NASA C-MAPSS or UCI SECOM file instead of Gaussian noise. Documented column map onto temperature/pressure/vibration/flow/current, min-max scaled into each sensor's `[min, max]`. C-MAPSS units zip onto devices; late-life cycles and SECOM fail labels are `anomaly`. CLI: `--replay {cmapss,secom} --replay-file`. Fetch script writes gitignored `data/`. 21 new simulator tests on tiny fixtures (57/57 total). Datasets themselves are not committed.

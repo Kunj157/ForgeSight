@@ -16,7 +16,7 @@ jobs:
   appimage:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Same package list as the `build` job in ci.yml, kept in sync manually
       # since GitHub Actions has no shared-step-list primitive across
@@ -28,6 +28,8 @@ jobs:
             cmake g++ pkg-config \
             nlohmann-json3-dev libspdlog-dev libpq-dev \
             libpaho-mqtt-dev libpaho-mqttpp-dev \
+            librdkafka-dev \
+            libgrpc++-dev protobuf-compiler-grpc libprotobuf-dev protobuf-compiler \
             libqt6sql6-sqlite \
             qt6-base-dev qt6-declarative-dev qt6-charts-dev \
             qt6-httpserver-dev qt6-websockets-dev \
@@ -61,7 +63,7 @@ jobs:
           DISPLAY=:99 APPIMAGE_EXTRACT_AND_RUN=1 timeout 10 ./dist/ForgeSight-x86_64.AppImage 2>&1 | tee /tmp/appimage.log || true
           grep -q "window ready" /tmp/appimage.log
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: appimage
           path: dist/ForgeSight-x86_64.AppImage
@@ -71,7 +73,7 @@ jobs:
   docker-image:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -96,9 +98,9 @@ jobs:
     needs: [appimage, docker-image]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: appimage
           path: dist
