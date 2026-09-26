@@ -3,6 +3,9 @@
 #include <libpq-fe.h>
 #include <spdlog/spdlog.h>
 
+#include <optional>
+#include <utility>
+
 namespace alarm_engine {
 
 AlarmStore::AlarmStore(const AlarmStoreConfig& config) {
@@ -171,20 +174,22 @@ bool AlarmStore::delete_rule(std::int64_t rule_id) {
     return ok;
 }
 
-std::vector<Rule> AlarmStore::load_rules() const {
-    std::vector<Rule> rules;
+std::optional<std::vector<Rule>> AlarmStore::try_load_rules() const {
     if (!conn_)
-        return rules;
+        return std::nullopt;
 
     auto* res = PQexec(static_cast<PGconn*>(conn_),
                        "SELECT id, device_id, sensor, condition, threshold, severity "
                        "FROM alarm_rules ORDER BY id");
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        spdlog::error("Failed to load alarm rules: {}",
+                      PQerrorMessage(static_cast<PGconn*>(conn_)));
         PQclear(res);
-        return rules;
+        return std::nullopt;
     }
 
+    std::vector<Rule> rules;
     int rows = PQntuples(res);
     for (int i = 0; i < rows; ++i) {
         Rule r;
@@ -199,6 +204,13 @@ std::vector<Rule> AlarmStore::load_rules() const {
 
     PQclear(res);
     return rules;
+}
+
+std::vector<Rule> AlarmStore::load_rules() const {
+    auto loaded = try_load_rules();
+    if (!loaded)
+        return {};
+    return std::move(*loaded);
 }
 
 bool AlarmStore::write_alarm(const Alarm& alarm) {
