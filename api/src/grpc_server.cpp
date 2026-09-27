@@ -8,6 +8,7 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include <mutex>
 #include <utility>
 
 namespace api {
@@ -41,6 +42,9 @@ class ServiceImpl final : public ::forgesight::ForgeSight::Service {
                              ::forgesight::DeviceList* out) override {
         if (!authorized(ctx, api_key_))
             return grpc::Status(grpc::StatusCode::UNAUTHENTICATED, "missing or invalid x-api-key");
+        // Sync handlers run concurrently (default max_pollers is 2). Both
+        // services share one PGconn, which libpq forbids using from two threads.
+        std::lock_guard<std::mutex> lock(db_mu_);
         for (const auto& d : devices_.list_devices()) {
             auto* m = out->add_devices();
             m->set_id(d.id);
@@ -60,6 +64,7 @@ class ServiceImpl final : public ::forgesight::ForgeSight::Service {
                             ::forgesight::ReadingList* out) override {
         if (!authorized(ctx, api_key_))
             return grpc::Status(grpc::StatusCode::UNAUTHENTICATED, "missing or invalid x-api-key");
+        std::lock_guard<std::mutex> lock(db_mu_);
         const int max_points = req->max_points() == 0 ? 1000 : req->max_points();
         const std::string since =
             req->since().empty() ? std::string("1970-01-01T00:00:00Z") : req->since();
@@ -73,6 +78,7 @@ class ServiceImpl final : public ::forgesight::ForgeSight::Service {
                             ::forgesight::AlarmList* out) override {
         if (!authorized(ctx, api_key_))
             return grpc::Status(grpc::StatusCode::UNAUTHENTICATED, "missing or invalid x-api-key");
+        std::lock_guard<std::mutex> lock(db_mu_);
         for (const auto& a : rules_.list_alarms(req->unacknowledged_only())) {
             auto* m = out->add_alarms();
             m->set_id(a.id);
@@ -92,11 +98,15 @@ class ServiceImpl final : public ::forgesight::ForgeSight::Service {
                                   ::forgesight::AckReply* out) override {
         if (!authorized(ctx, api_key_))
             return grpc::Status(grpc::StatusCode::UNAUTHENTICATED, "missing or invalid x-api-key");
+        std::lock_guard<std::mutex> lock(db_mu_);
         out->set_ok(rules_.acknowledge_alarm(req->id()));
         return grpc::Status::OK;
     }
 
   private:
+    // Serializes every RPC that touches devices_ / rules_. Those services
+    // share a single libpq connection (see api/main.cpp).
+    std::mutex db_mu_;
     DeviceService& devices_;
     RuleService& rules_;
     std::string api_key_;
