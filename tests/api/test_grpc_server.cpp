@@ -1,8 +1,11 @@
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <cstdint>
 #include <grpcpp/grpcpp.h>
 #include <libpq-fe.h>
+#include <thread>
+#include <vector>
 
 #include "alarm-engine/types.h"
 #include "api/device_service.h"
@@ -218,6 +221,61 @@ TEST_F(GrpcServerTest, ListAlarmsAndAcknowledge) {
     ASSERT_TRUE(status.ok()) << status.error_message();
     for (const auto& a : after.alarms())
         EXPECT_NE(a.id(), found_id);
+
+    server.stop();
+}
+
+TEST_F(GrpcServerTest, ConcurrentRpcsOnSharedConnection) {
+    seed_reading(conn, "grpc-test", "temperature", 66.5, "2026-09-22T08:00:00Z");
+    api::DeviceService devices(conn);
+    api::RuleService rules(conn);
+    api::GrpcServer server(devices, rules);
+    ASSERT_TRUE(server.start("127.0.0.1:0"));
+
+    auto channel = grpc::CreateChannel("127.0.0.1:" + std::to_string(server.port()),
+                                        grpc::InsecureChannelCredentials());
+
+    constexpr int kThreads = 8;
+    constexpr int kIters = 20;
+    std::atomic<int> ok{0};
+    std::vector<std::thread> threads;
+    threads.reserve(kThreads);
+    for (int i = 0; i < kThreads; ++i) {
+        threads.emplace_back([channel, &ok]() {
+            auto stub = ::forgesight::ForgeSight::NewStub(channel);
+            for (int n = 0; n < kIters; ++n) {
+                grpc::ClientContext ctx;
+                ::forgesight::Empty empty;
+                ::forgesight::DeviceList list;
+                auto status = stub->ListDevices(&ctx, empty, &list);
+                if (!status.ok())
+                    return;
+                bool found = false;
+                for (const auto& d : list.devices()) {
+                    if (d.id() == "grpc-test" && d.last_value() == 66.5)
+                        found = true;
+                }
+                if (!found)
+                    return;
+
+                grpc::ClientContext hctx;
+                ::forgesight::HistoryRequest req;
+                req.set_device_id("grpc-test");
+                req.set_sensor("temperature");
+                req.set_since("2026-09-22T00:00:00Z");
+                ::forgesight::ReadingList hist;
+                status = stub->GetHistory(&hctx, req, &hist);
+                if (!status.ok() || hist.readings_size() < 1)
+                    return;
+                if (hist.readings(0).device_id() != "grpc-test" || hist.readings(0).value() != 66.5)
+                    return;
+                ok.fetch_add(1, std::memory_order_relaxed);
+            }
+        });
+    }
+    for (auto& t : threads)
+        t.join();
+    EXPECT_EQ(ok.load(), kThreads * kIters);
 
     server.stop();
 }
