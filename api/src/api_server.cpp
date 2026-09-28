@@ -77,26 +77,45 @@ bool ApiServer::start(quint16 httpPort, quint16 wsPort, const std::string& mqttB
     connect_mqtt(mqttBroker);
     seed_default_device_locations();
 
-    last_readings_since_ =
+    // Catch up a few seconds of rows that landed before this process started,
+    // then follow by primary key. A timestamp cursor either replays the last
+    // timestamp on every tick (`>=`, which keeps the dashboard looking live
+    // after ingestion has stopped) or drops a later commit of that same
+    // timestamp (`>`).
+    const auto catchup_since =
         QDateTime::currentDateTimeUtc().addSecs(-10).toString(Qt::ISODate).toStdString();
-    last_alarms_since_ =
-        QDateTime::currentDateTimeUtc().addSecs(-10).toString(Qt::ISODate).toStdString();
+    last_reading_id_ = deviceService_.reading_poll_cursor(catchup_since);
+    last_alarm_id_ = ruleService_.alarm_poll_cursor(catchup_since);
 
     auto* timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, [this]() {
-        auto readings = deviceService_.get_readings_since(last_readings_since_);
-        if (!readings.empty()) {
-            last_readings_since_ = readings.back().timestamp;
-            for (const auto& r : readings) {
-                broadcast_reading(r);
+        if (!last_reading_id_) {
+            const auto catchup =
+                QDateTime::currentDateTimeUtc().addSecs(-10).toString(Qt::ISODate).toStdString();
+            last_reading_id_ = deviceService_.reading_poll_cursor(catchup);
+        }
+        if (last_reading_id_) {
+            auto readings = deviceService_.readings_after(*last_reading_id_);
+            if (!readings.empty()) {
+                last_reading_id_ = readings.back().id;
+                for (const auto& row : readings) {
+                    broadcast_reading(row.reading);
+                }
             }
         }
 
-        auto alarms = ruleService_.get_alarms_since(last_alarms_since_);
-        if (!alarms.empty()) {
-            last_alarms_since_ = alarms.back().timestamp;
-            for (const auto& a : alarms) {
-                broadcast_alarm(a);
+        if (!last_alarm_id_) {
+            const auto catchup =
+                QDateTime::currentDateTimeUtc().addSecs(-10).toString(Qt::ISODate).toStdString();
+            last_alarm_id_ = ruleService_.alarm_poll_cursor(catchup);
+        }
+        if (last_alarm_id_) {
+            auto alarms = ruleService_.alarms_after(*last_alarm_id_);
+            if (!alarms.empty()) {
+                last_alarm_id_ = alarms.back().id;
+                for (const auto& a : alarms) {
+                    broadcast_alarm(a);
+                }
             }
         }
     });

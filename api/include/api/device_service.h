@@ -1,12 +1,18 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "ingestion/reading.h"
 
 namespace api {
+
+struct PolledReading {
+    std::int64_t id = 0;
+    ingestion::Reading reading;
+};
 
 struct DeviceInfo {
     std::string id;
@@ -39,7 +45,16 @@ class DeviceService {
                                                 const std::string& sensor, const std::string& since,
                                                 int max_points = 1000) const;
 
-    std::vector<ingestion::Reading> get_readings_since(const std::string& since) const;
+    /// Live-poll cursor. Id of the row just before `catchup_since`, or the
+    /// current max id when nothing is in that window. Steady-state polling
+    /// uses `readings_after` so a later row that shares a timestamp is still
+    /// delivered once, and a row already delivered is not sent again.
+    /// Timestamp cursors cannot do both: `>=` replays the whole timestamp
+    /// forever, and `>` drops a commit that lands on the cursor time.
+    /// Empty when the lookup fails (table missing, connection down). Callers
+    /// must retry rather than treat that as id 0, which would replay history.
+    std::optional<std::int64_t> reading_poll_cursor(const std::string& catchup_since) const;
+    std::vector<PolledReading> readings_after(std::int64_t after_id) const;
 
     /// Assigns (or reassigns) the plant/floor location metadata for a device.
     /// Upserted independently of readings, so it survives even if the device

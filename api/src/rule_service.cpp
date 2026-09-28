@@ -145,20 +145,53 @@ bool RuleService::delete_rule(std::int64_t id) {
     return ok;
 }
 
-std::vector<alarm_engine::Alarm> RuleService::get_alarms_since(const std::string& since) const {
+std::optional<std::int64_t> RuleService::alarm_poll_cursor(const std::string& catchup_since) const {
+    if (!conn_)
+        return std::nullopt;
 
+    const char* params[1] = {catchup_since.c_str()};
+    int lengths[1] = {static_cast<int>(catchup_since.size())};
+    int formats[1] = {0};
+
+    auto* res =
+        PQexecParams(static_cast<PGconn*>(conn_),
+                     "SELECT COALESCE("
+                     "  (SELECT MIN(id) - 1 FROM alarms WHERE timestamp >= $1::timestamptz),"
+                     "  (SELECT COALESCE(MAX(id), 0) FROM alarms)"
+                     ")",
+                     1, nullptr, params, lengths, formats, 0);
+
+    if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0 && !PQgetisnull(res, 0, 0)) {
+        const auto cursor = std::stoll(PQgetvalue(res, 0, 0));
+        PQclear(res);
+        return cursor;
+    }
+    PQclear(res);
+
+    auto* max_res = PQexec(static_cast<PGconn*>(conn_), "SELECT COALESCE(MAX(id), 0) FROM alarms");
+    std::optional<std::int64_t> cursor;
+    if (PQresultStatus(max_res) == PGRES_TUPLES_OK && PQntuples(max_res) > 0 &&
+        !PQgetisnull(max_res, 0, 0)) {
+        cursor = std::stoll(PQgetvalue(max_res, 0, 0));
+    }
+    PQclear(max_res);
+    return cursor;
+}
+
+std::vector<alarm_engine::Alarm> RuleService::alarms_after(std::int64_t after_id) const {
     std::vector<alarm_engine::Alarm> alarms;
     if (!conn_)
         return alarms;
 
-    const char* params[1] = {since.c_str()};
-    int lengths[1] = {static_cast<int>(since.size())};
+    const std::string id_str = std::to_string(after_id);
+    const char* params[1] = {id_str.c_str()};
+    int lengths[1] = {static_cast<int>(id_str.size())};
     int formats[1] = {0};
 
     auto* res = PQexecParams(static_cast<PGconn*>(conn_),
                              "SELECT id, rule_id, device_id, sensor, value, severity, message, "
                              "timestamp::text, acknowledged FROM alarms "
-                             "WHERE timestamp > $1 ORDER BY timestamp",
+                             "WHERE id > $1::bigint ORDER BY id",
                              1, nullptr, params, lengths, formats, 0);
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
