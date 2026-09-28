@@ -196,21 +196,63 @@ std::vector<ingestion::Reading> DeviceService::get_history(const std::string& de
     return readings;
 }
 
-std::vector<ingestion::Reading> DeviceService::get_readings_since(const std::string& since) const {
+std::optional<std::int64_t>
+DeviceService::reading_poll_cursor(const std::string& catchup_since) const {
+    if (!conn_)
+        return std::nullopt;
 
-    std::vector<ingestion::Reading> readings;
+    const char* params[1] = {catchup_since.c_str()};
+    int lengths[1] = {static_cast<int>(catchup_since.size())};
+    int formats[1] = {0};
+
+    // Id just before the catch-up window. When the window is empty, the
+    // second arm is the current max id, so the next poll does not replay
+    // history. A failed lookup returns nullopt: id 0 would broadcast every
+    // stored row once the table is reachable again.
+    auto* res =
+        PQexecParams(static_cast<PGconn*>(conn_),
+                     "SELECT COALESCE("
+                     "  (SELECT MIN(id) - 1 FROM readings WHERE timestamp >= $1::timestamptz),"
+                     "  (SELECT COALESCE(MAX(id), 0) FROM readings)"
+                     ")",
+                     1, nullptr, params, lengths, formats, 0);
+
+    if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0 && !PQgetisnull(res, 0, 0)) {
+        const auto cursor = std::stoll(PQgetvalue(res, 0, 0));
+        PQclear(res);
+        return cursor;
+    }
+    PQclear(res);
+
+    auto* max_res =
+        PQexec(static_cast<PGconn*>(conn_), "SELECT COALESCE(MAX(id), 0) FROM readings");
+    std::optional<std::int64_t> cursor;
+    if (PQresultStatus(max_res) == PGRES_TUPLES_OK && PQntuples(max_res) > 0 &&
+        !PQgetisnull(max_res, 0, 0)) {
+        cursor = std::stoll(PQgetvalue(max_res, 0, 0));
+    }
+    PQclear(max_res);
+    return cursor;
+}
+
+std::vector<PolledReading> DeviceService::readings_after(std::int64_t after_id) const {
+    std::vector<PolledReading> readings;
     if (!conn_)
         return readings;
 
-    const char* params[1] = {since.c_str()};
-    int lengths[1] = {static_cast<int>(since.size())};
+    const std::string id_str = std::to_string(after_id);
+    const char* params[1] = {id_str.c_str()};
+    int lengths[1] = {static_cast<int>(id_str.size())};
     int formats[1] = {0};
 
+    // Primary key order is the commit order of the single ingestion writer.
+    // `id > cursor` includes a later row that shares the previous row's
+    // timestamp, and excludes rows already broadcast.
     auto* res = PQexecParams(static_cast<PGconn*>(conn_),
-                             "SELECT device_id, sensor, value, unit, timestamp::text, anomaly "
+                             "SELECT id, device_id, sensor, value, unit, timestamp::text, anomaly "
                              "FROM readings "
-                             "WHERE timestamp >= $1 "
-                             "ORDER BY timestamp",
+                             "WHERE id > $1::bigint "
+                             "ORDER BY id",
                              1, nullptr, params, lengths, formats, 0);
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
@@ -220,14 +262,15 @@ std::vector<ingestion::Reading> DeviceService::get_readings_since(const std::str
 
     int rows = PQntuples(res);
     for (int i = 0; i < rows; ++i) {
-        ingestion::Reading r;
-        r.device_id = PQgetvalue(res, i, 0);
-        r.sensor = PQgetvalue(res, i, 1);
-        r.value = std::stod(PQgetvalue(res, i, 2));
-        r.unit = PQgetvalue(res, i, 3);
-        r.timestamp = PQgetvalue(res, i, 4);
-        r.anomaly = (PQgetvalue(res, i, 5)[0] == 't');
-        readings.push_back(std::move(r));
+        PolledReading row;
+        row.id = std::stoll(PQgetvalue(res, i, 0));
+        row.reading.device_id = PQgetvalue(res, i, 1);
+        row.reading.sensor = PQgetvalue(res, i, 2);
+        row.reading.value = std::stod(PQgetvalue(res, i, 3));
+        row.reading.unit = PQgetvalue(res, i, 4);
+        row.reading.timestamp = PQgetvalue(res, i, 5);
+        row.reading.anomaly = (PQgetvalue(res, i, 6)[0] == 't');
+        readings.push_back(std::move(row));
     }
 
     PQclear(res);
