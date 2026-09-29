@@ -374,6 +374,9 @@ class RuleServiceTest : public ::testing::Test {
 
     void TearDown() override {
         if (conn) {
+            // Alarm rows reference rules; drop them first or the rule delete
+            // is rejected and the next test sees a stale row.
+            exec_and_clear(conn, "DELETE FROM alarms WHERE device_id = 'svc-test'");
             exec_and_clear(conn, "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
             PQfinish(static_cast<PGconn*>(conn));
         }
@@ -431,6 +434,54 @@ TEST_F(RuleServiceTest, DeleteRule) {
     auto id = svc.create_rule(r);
     EXPECT_TRUE(svc.delete_rule(id));
     EXPECT_FALSE(svc.get_rule(id).has_value());
+}
+
+TEST_F(RuleServiceTest, DeleteFiredRuleKeepsAlarmReadable) {
+    exec_and_clear(conn, "CREATE TABLE IF NOT EXISTS alarms ("
+                         "  id BIGSERIAL PRIMARY KEY,"
+                         "  rule_id BIGINT REFERENCES alarm_rules(id),"
+                         "  device_id TEXT NOT NULL, sensor TEXT NOT NULL,"
+                         "  value DOUBLE PRECISION NOT NULL,"
+                         "  severity TEXT NOT NULL DEFAULT 'warning',"
+                         "  message TEXT NOT NULL DEFAULT '',"
+                         "  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+                         "  acknowledged BOOLEAN NOT NULL DEFAULT FALSE)");
+
+    api::RuleService svc(conn);
+    alarm_engine::Rule r;
+    r.device_id = "svc-test";
+    r.sensor = "temperature";
+    r.condition = alarm_engine::Condition::GreaterThan;
+    r.threshold = 80.0;
+    r.severity = alarm_engine::Severity::Critical;
+
+    const auto id = svc.create_rule(r);
+    ASSERT_GT(id, 0);
+
+    const auto id_str = std::to_string(id);
+    const char* params[1] = {id_str.c_str()};
+    int lengths[1] = {static_cast<int>(id_str.size())};
+    int formats[1] = {0};
+    auto* ins = PQexecParams(static_cast<PGconn*>(conn),
+                             "INSERT INTO alarms (rule_id, device_id, sensor, value, severity, "
+                             "message, timestamp) VALUES ($1, 'svc-test', 'temperature', 99, "
+                             "'critical', 'over limit', '2026-09-29T00:00:00Z')",
+                             1, nullptr, params, lengths, formats, 0);
+    ASSERT_EQ(PQresultStatus(ins), PGRES_COMMAND_OK);
+    PQclear(ins);
+
+    EXPECT_TRUE(svc.delete_rule(id));
+    EXPECT_FALSE(svc.get_rule(id).has_value());
+
+    const auto alarms = svc.list_alarms(false);
+    const alarm_engine::Alarm* kept = nullptr;
+    for (const auto& alarm : alarms) {
+        if (alarm.device_id == "svc-test" && alarm.message == "over limit")
+            kept = &alarm;
+    }
+    ASSERT_NE(kept, nullptr);
+    EXPECT_EQ(kept->rule_id, 0);
+    EXPECT_DOUBLE_EQ(kept->value, 99.0);
 }
 
 TEST_F(RuleServiceTest, NullConnReturnsEmpty) {

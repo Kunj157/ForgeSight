@@ -150,6 +150,55 @@ TEST_F(AlarmStoreTest, DeleteRule) {
     EXPECT_LT(after.size(), rules.size());
 }
 
+TEST_F(AlarmStoreTest, DeleteRuleWithFiredAlarmKeepsHistory) {
+    // A rule that has already produced an alarm cannot be removed by a plain
+    // DELETE: alarms.rule_id REFERENCES alarm_rules. The Rules tab hits that
+    // path. History must stay readable, with a null rule id, after the delete.
+    AlarmStoreConfig cfg{conn_str};
+    AlarmStore store(cfg);
+    ASSERT_TRUE(store.is_connected());
+
+    Rule r = make_rule();
+    r.device_id = "delete-fk-test";
+    ASSERT_TRUE(store.add_rule(r));
+
+    std::int64_t rule_id = -1;
+    for (const auto& rule : store.load_rules()) {
+        if (rule.device_id == "delete-fk-test")
+            rule_id = rule.id;
+    }
+    ASSERT_GT(rule_id, 0);
+
+    Alarm a = make_alarm();
+    a.rule_id = rule_id;
+    a.device_id = "delete-fk-test";
+    ASSERT_TRUE(store.write_alarm(a));
+
+    EXPECT_TRUE(store.delete_rule(rule_id));
+
+    bool rule_gone = true;
+    for (const auto& rule : store.load_rules()) {
+        if (rule.id == rule_id)
+            rule_gone = false;
+    }
+    EXPECT_TRUE(rule_gone);
+
+    const auto alarms = store.load_alarms();
+    const Alarm* kept = nullptr;
+    for (const auto& alarm : alarms) {
+        if (alarm.device_id == "delete-fk-test")
+            kept = &alarm;
+    }
+    ASSERT_NE(kept, nullptr);
+    EXPECT_EQ(kept->rule_id, 0);
+    EXPECT_EQ(kept->message, a.message);
+
+    auto* conn = PQconnectdb(conn_str.c_str());
+    auto* res = PQexec(conn, "DELETE FROM alarms WHERE device_id = 'delete-fk-test'");
+    PQclear(res);
+    PQfinish(conn);
+}
+
 TEST_F(AlarmStoreTest, WriteAndLoadAlarm) {
     AlarmStoreConfig cfg{conn_str};
     AlarmStore store(cfg);
