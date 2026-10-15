@@ -33,6 +33,10 @@ qt_add_qml_module(factory-pulse
         qml/StatusPill.qml
         qml/ShimmerText.qml
         qml/Skeleton.qml
+        qml/SegmentedControl.qml
+        qml/FxButton.qml
+        qml/EmptyState.qml
+        qml/ToastHost.qml
     RESOURCES
         qml/qmldir
 )
