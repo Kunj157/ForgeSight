@@ -28,11 +28,6 @@ int main(int argc, char* argv[]) {
     std::fprintf(stderr, "ForgeSight: starting (Qt %s)…\n", qVersion());
     std::fflush(stderr);
 
-    QQmlApplicationEngine engine;
-
-    // Live per-section views of deviceModel for the device tree.
-    qmlRegisterType<ui::DeviceFilterModel>("ForgeSight.Models", 1, 0, "DeviceFilterModel");
-
     ui::DeviceModel deviceModel;
     ui::AlarmModel alarmModel;
     ui::WsClient wsClient;
@@ -44,6 +39,14 @@ int main(int argc, char* argv[]) {
     ui::RuleModel ruleModel;
     ui::ChartZoom chartZoom;
     ui::DisplayOptions displayOptions(QProcessEnvironment::systemEnvironment());
+
+    // Declared after every object exposed to QML so it is destroyed first:
+    // otherwise live bindings re-evaluate against already-deleted context
+    // properties during shutdown ("Cannot read property … of null").
+    QQmlApplicationEngine engine;
+
+    // Live per-section views of deviceModel for the device tree.
+    qmlRegisterType<ui::DeviceFilterModel>("ForgeSight.Models", 1, 0, "DeviceFilterModel");
 
     QString apiBase = qEnvironmentVariable("FORGESIGHT_API", "http://127.0.0.1:8080");
     QString wsUrl = qEnvironmentVariable("FORGESIGHT_WS", "ws://127.0.0.1:8081");
