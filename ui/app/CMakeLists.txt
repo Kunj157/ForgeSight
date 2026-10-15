@@ -59,5 +59,6 @@ if(Qt6Quick3D_FOUND)
     target_compile_definitions(factory-pulse PRIVATE FORGESIGHT_HAVE_QUICK3D=1)
     qt_target_qml_sources(factory-pulse QML_FILES qml/PlantView3D.qml qml/Splash3D.qml)
 else()
-    message(STATUS "Qt Quick 3D not found — 3D plant view disabled (2.5D fallback only)")
+    message(STATUS "Qt Quick 3D not found — 3D plant view disabled (2.5D fallback only): "
+                   "${Qt6Quick3D_NOT_FOUND_MESSAGE}")
 endif()
