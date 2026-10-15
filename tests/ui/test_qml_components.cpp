@@ -11,6 +11,7 @@
 #include <QScopedPointer>
 #include <QUrl>
 #include <QVariant>
+#include <QtNumeric>
 
 #include <memory>
 
@@ -84,6 +85,40 @@ TEST_F(QmlComponentsTest, ThemeStatusHelpersCoverEveryState) {
     EXPECT_NEAR(obj->property("halfAlpha").toDouble(), 0.5, 0.01);
 }
 
+TEST_F(QmlComponentsTest, AnimatedNumberFormatsAndSettlesUnderReducedMotion) {
+    QObject* obj = make("import QtQuick\n"
+                        "AnimatedNumber {\n"
+                        "  Component.onCompleted: Theme.reducedMotion = true\n"
+                        "  decimals: 2; suffix: ' bar'\n"
+                        "  function setTo(v) { value = v }\n"
+                        "}\n");
+    ASSERT_NE(obj, nullptr) << last_errors_.toStdString();
+    QMetaObject::invokeMethod(obj, "setTo", Q_ARG(QVariant, 4.256));
+    EXPECT_EQ(obj->property("text").toString(), "4.26 bar");
+    QMetaObject::invokeMethod(obj, "setTo", Q_ARG(QVariant, qQNaN()));
+    EXPECT_EQ(obj->property("text").toString(), QString::fromUtf8("\u2014"));
+}
+
+TEST_F(QmlComponentsTest, SlidingNumberGrowsOneColumnPerDigit) {
+    QObject* obj = make("import QtQuick\n"
+                        "SlidingNumber { value: 7 }\n");
+    ASSERT_NE(obj, nullptr) << last_errors_.toStdString();
+    const double one_digit = obj->property("implicitWidth").toDouble();
+    EXPECT_GT(one_digit, 0.0);
+    obj->setProperty("value", 1234);
+    EXPECT_NEAR(obj->property("implicitWidth").toDouble(), one_digit * 4, 0.5);
+}
+
+TEST_F(QmlComponentsTest, StatusPillTakesItsToneFromTheTheme) {
+    QObject* obj = make("import QtQuick\n"
+                        "Item {\n"
+                        "  StatusPill { id: p; status: 'critical'; pulse: true }\n"
+                        "  property bool matches: p.tone === Theme.critical\n"
+                        "}\n");
+    ASSERT_NE(obj, nullptr) << last_errors_.toStdString();
+    EXPECT_TRUE(obj->property("matches").toBool());
+}
+
 TEST_F(QmlComponentsTest, BorderTrailStopsUnderReducedMotion) {
     QObject* obj = make("import QtQuick\n"
                         "BorderTrail { width: 200; height: 100 }\n");
@@ -96,6 +131,21 @@ TEST_F(QmlComponentsTest, BorderTrailStopsUnderReducedMotion) {
     EXPECT_FALSE(obj->property("_active").toBool());
 }
 
+TEST_F(QmlComponentsTest, ShimmerTextSizesToItsTextAndDropsTheBandWhenStill) {
+    QObject* obj = make("import QtQuick\n"
+                        "Item {\n"
+                        "  ShimmerText { id: s; text: 'Connecting to plant…' }\n"
+                        "  property real w: s.implicitWidth\n"
+                        "  property int layers: s.children.length\n"
+                        "  function still() { Theme.reducedMotion = true }\n"
+                        "}\n");
+    ASSERT_NE(obj, nullptr) << last_errors_.toStdString();
+    EXPECT_GT(obj->property("w").toDouble(), 50.0);
+    const int animated_layers = obj->property("layers").toInt();
+    QMetaObject::invokeMethod(obj, "still");
+    EXPECT_LT(obj->property("layers").toInt(), animated_layers);
+}
+
 class ComponentFileTest : public QmlComponentsTest,
                           public ::testing::WithParamInterface<const char*> {};
 
@@ -106,7 +156,9 @@ TEST_P(ComponentFileTest, InstantiatesWithoutErrors) {
 
 INSTANTIATE_TEST_SUITE_P(Primitives, ComponentFileTest,
                          ::testing::Values("Icon.qml", "ShadowCard.qml", "GlowCard.qml",
-                                           "GlowEffect.qml", "Spotlight.qml", "BorderTrail.qml"));
+                                           "GlowEffect.qml", "Spotlight.qml", "BorderTrail.qml",
+                                           "AnimatedNumber.qml", "SlidingNumber.qml",
+                                           "StatusPill.qml", "ShimmerText.qml", "Skeleton.qml"));
 
 } // namespace
 
