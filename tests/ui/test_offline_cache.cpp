@@ -6,6 +6,7 @@
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QTest>
 
 #include "ui/offline_cache.h"
 
@@ -174,4 +175,82 @@ TEST_F(OfflineCacheTest, OperationsOnUnopenedCacheAreNoopsNotCrashes) {
     cache.queueAck(1);
     EXPECT_TRUE(cache.pendingAcks().empty());
     EXPECT_EQ(cache.pendingAckCount(), 0);
+}
+
+// —— Write batching ——
+// Every live reading used to be one synchronous SQLite statement on the GUI
+// thread; at hundreds of readings a second the fsyncs stalled the event loop.
+// Saves are now coalesced per (device, sensor) and written in one
+// transaction on a short timer, on flush(), on reopen and on destruction.
+
+namespace {
+int rows_in(const QString& path) {
+    ui::OfflineCache reader;
+    if (!reader.open(path))
+        return -1;
+    return static_cast<int>(reader.loadDeviceStates().size());
+}
+} // namespace
+
+TEST_F(OfflineCacheTest, SavesAreCoalescedPerDeviceSensorUntilFlushed) {
+    ui::OfflineCache cache;
+    ASSERT_TRUE(cache.open(dbPath));
+    cache.setFlushIntervalMs(60000);
+    cache.saveDeviceState("pump-001", "temperature", 1.0, "C", "t1", false, "A", "1");
+    cache.saveDeviceState("pump-001", "temperature", 2.0, "C", "t2", false, "A", "1");
+    cache.saveDeviceState("pump-001", "temperature", 3.0, "C", "t3", false, "A", "1");
+    cache.saveDeviceState("pump-002", "pressure", 4.0, "bar", "t1", false, "A", "1");
+
+    EXPECT_EQ(cache.pendingWriteCount(), 2);
+    EXPECT_EQ(rows_in(dbPath), 0);
+
+    cache.flush();
+    EXPECT_EQ(cache.pendingWriteCount(), 0);
+    EXPECT_EQ(rows_in(dbPath), 2);
+}
+
+TEST_F(OfflineCacheTest, FlushKeepsTheLatestValuePerKey) {
+    ui::OfflineCache cache;
+    ASSERT_TRUE(cache.open(dbPath));
+    cache.setFlushIntervalMs(60000);
+    cache.saveDeviceState("pump-001", "temperature", 1.0, "C", "t1", false, "A", "1");
+    cache.saveDeviceState("pump-001", "temperature", 9.5, "C", "t9", true, "B", "2");
+    cache.flush();
+
+    ui::OfflineCache reader;
+    ASSERT_TRUE(reader.open(dbPath));
+    auto states = reader.loadDeviceStates();
+    ASSERT_EQ(states.size(), 1u);
+    EXPECT_DOUBLE_EQ(states[0].value, 9.5);
+    EXPECT_EQ(states[0].timestamp, "t9");
+    EXPECT_TRUE(states[0].anomaly);
+    EXPECT_EQ(states[0].plant, "B");
+}
+
+TEST_F(OfflineCacheTest, PendingWritesFlushOnTheTimer) {
+    ui::OfflineCache cache;
+    ASSERT_TRUE(cache.open(dbPath));
+    cache.setFlushIntervalMs(20);
+    cache.saveDeviceState("pump-001", "temperature", 1.0, "C", "t1", false, "A", "1");
+    EXPECT_EQ(rows_in(dbPath), 0);
+
+    EXPECT_TRUE(QTest::qWaitFor([&]() { return cache.pendingWriteCount() == 0; }, 2000));
+    EXPECT_EQ(rows_in(dbPath), 1);
+}
+
+TEST_F(OfflineCacheTest, ReopeningFlushesPendingWritesToTheOldFile) {
+    ui::OfflineCache cache;
+    ASSERT_TRUE(cache.open(dbPath));
+    cache.setFlushIntervalMs(60000);
+    cache.saveDeviceState("pump-001", "temperature", 1.0, "C", "t1", false, "A", "1");
+
+    ASSERT_TRUE(cache.open(tempDir.filePath("other.db")));
+    EXPECT_EQ(rows_in(dbPath), 1);
+    EXPECT_EQ(cache.loadDeviceStates().size(), 0u);
+}
+
+TEST_F(OfflineCacheTest, UsesWriteAheadLogging) {
+    ui::OfflineCache cache;
+    ASSERT_TRUE(cache.open(dbPath));
+    EXPECT_EQ(cache.journalMode(), "wal");
 }
