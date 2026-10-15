@@ -28,6 +28,11 @@ qt_add_qml_module(factory-pulse
         qml/GlowEffect.qml
         qml/Spotlight.qml
         qml/BorderTrail.qml
+        qml/AnimatedNumber.qml
+        qml/SlidingNumber.qml
+        qml/StatusPill.qml
+        qml/ShimmerText.qml
+        qml/Skeleton.qml
     RESOURCES
         qml/qmldir
 )
