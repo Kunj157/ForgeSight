@@ -208,7 +208,7 @@ INSTANTIATE_TEST_SUITE_P(Primitives, ComponentFileTest,
                                            "StatusPill.qml", "ShimmerText.qml", "Skeleton.qml",
                                            "SegmentedControl.qml", "FxButton.qml", "EmptyState.qml",
                                            "ToastHost.qml", "Sidebar.qml", "TopBar.qml",
-                                           "ConnectionCard.qml", "Sparkline.qml"));
+                                           "ConnectionCard.qml", "Sparkline.qml", "FxCombo.qml"));
 
 } // namespace
 

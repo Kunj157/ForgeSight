@@ -102,59 +102,6 @@ Rectangle {
         }
     }
 
-    component StyledCombo: ComboBox {
-        id: combo
-        implicitHeight: 34
-        contentItem: Text {
-            text: combo.currentText
-            color: Theme.textPrimary
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSm
-            leftPadding: 12
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        background: Rectangle {
-            color: Theme.bgInput
-            radius: Theme.radiusMd
-            border.width: 1
-            border.color: combo.pressed || combo.popup.visible ? Theme.accent
-                        : combo.hovered ? Theme.borderStrong : Theme.border
-            Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
-        }
-        indicator: Icon {
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.rightMargin: 12
-            width: 10; height: 10
-            name: "chevron-down"
-            color: Theme.textMuted
-            rotation: combo.popup.visible ? 180 : 0
-            Behavior on rotation { NumberAnimation { duration: Theme.motionMed } }
-        }
-        delegate: Component {
-            ItemDelegate {
-                width: combo.width
-                highlighted: combo.highlightedIndex === index
-                contentItem: Text {
-                    text: combo.textRole ? (Array.isArray(combo.model) ? modelData[combo.textRole] : model[combo.textRole]) : modelData
-                    color: highlighted ? Theme.textPrimary : Theme.textSecondary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSm
-                }
-                background: Rectangle {
-                    color: highlighted ? Theme.accentSoft : "transparent"
-                    radius: Theme.radiusSm
-                }
-            }
-        }
-        popup.background: Rectangle {
-            color: Theme.bgElevated
-            radius: Theme.radiusMd
-            border.color: Theme.borderStrong
-        }
-    }
-
     component Stat: Column {
         property string label: ""
         property real value: 0
@@ -196,13 +143,13 @@ Rectangle {
                 anchors.rightMargin: Theme.spaceLg
                 spacing: Theme.spaceMd
 
-                StyledCombo {
+                FxCombo {
                     id: deviceCombo
                     model: deviceModel
                     textRole: "deviceId"
                     Layout.preferredWidth: 170
                 }
-                StyledCombo {
+                FxCombo {
                     id: sensorCombo
                     model: ListModel {
                         ListElement { text: "temperature" }

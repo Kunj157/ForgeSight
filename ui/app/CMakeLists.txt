@@ -42,6 +42,7 @@ qt_add_qml_module(factory-pulse
         qml/ConnectionCard.qml
         qml/DeviceCard.qml
         qml/Sparkline.qml
+        qml/FxCombo.qml
     RESOURCES
         qml/qmldir
 )
