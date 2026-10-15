@@ -209,10 +209,21 @@ Window {
                     opacity: current ? 1 : 0
                     visible: opacity > 0.01
                     Behavior on opacity { NumberAnimation { duration: Theme.motionMed; easing.type: Easing.OutCubic } }
-                    transform: Translate {
-                        y: current ? 0 : 12
-                        Behavior on y { NumberAnimation { duration: Theme.motionSlow; easing.type: Easing.OutCubic } }
-                    }
+                    // Lift plus a slight perspective tilt about the left edge, so
+                    // pages swing in rather than just fade.
+                    transform: [
+                        Translate {
+                            y: current ? 0 : 12
+                            Behavior on y { NumberAnimation { duration: Theme.motionSlow; easing.type: Easing.OutCubic } }
+                        },
+                        Rotation {
+                            origin.x: 0
+                            origin.y: height / 2
+                            axis { x: 0; y: 1; z: 0 }
+                            angle: current || Theme.reducedMotion ? 0 : -7
+                            Behavior on angle { NumberAnimation { duration: Theme.motionSlow; easing.type: Easing.OutCubic } }
+                        }
+                    ]
                 }
 
                 PanelSlot {
@@ -255,6 +266,56 @@ Window {
                     active: current || item !== null
                     source: "RuleEditorPanel.qml"
                 }
+            }
+        }
+    }
+
+    // —— Connecting splash ——
+    // Shown until the first data arrives (cache, REST or WS). 3D when the
+    // build has Qt Quick 3D and the scene graph is hardware-accelerated,
+    // otherwise a 2D pulse.
+    Rectangle {
+        id: splash
+        anchors.fill: parent
+        z: 50
+        color: Theme.bgApp
+        readonly property bool wanted: deviceModel.count === 0 && root.linkState === "connecting"
+        opacity: wanted ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutCubic } }
+
+        Loader {
+            id: splash3d
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: -60
+            width: 420; height: 320
+            active: splash.visible && quick3dAvailable && displayOptions.enable3d
+                    && GraphicsInfo.api !== GraphicsInfo.Software
+            source: "Splash3D.qml"
+        }
+        EmptyState {
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: -60
+            visible: splash3d.status !== Loader.Ready
+            icon: "layers"
+        }
+        Column {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: splash3d.bottom
+            spacing: Theme.spaceSm
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "ForgeSight"
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontHero
+                font.bold: true
+                color: Theme.textPrimary
+            }
+            ShimmerText {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Connecting to " + wsClient.url.toString() + "…"
+                font.pixelSize: Theme.fontMd
             }
         }
     }
