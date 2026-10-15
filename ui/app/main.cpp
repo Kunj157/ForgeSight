@@ -4,12 +4,14 @@
 #include <QQmlContext>
 #include <QQuickWindow>
 #include <QTimer>
+#include <QtQml/qqml.h>
 
 #include <cstdio>
 
 #include "ui/alarm_model.h"
 #include "ui/api_client.h"
 #include "ui/chart_zoom.h"
+#include "ui/device_filter_model.h"
 #include "ui/device_model.h"
 #include "ui/display_options.h"
 #include "ui/history_model.h"
@@ -27,6 +29,9 @@ int main(int argc, char* argv[]) {
     std::fflush(stderr);
 
     QQmlApplicationEngine engine;
+
+    // Live per-section views of deviceModel for the device tree.
+    qmlRegisterType<ui::DeviceFilterModel>("ForgeSight.Models", 1, 0, "DeviceFilterModel");
 
     ui::DeviceModel deviceModel;
     ui::AlarmModel alarmModel;
