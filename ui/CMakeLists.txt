@@ -15,6 +15,7 @@ add_library(ui_lib STATIC
     src/series_stats.cpp
     src/rule_model.cpp
     src/chart_zoom.cpp
+    src/device_filter_model.cpp
     src/display_options.cpp
     include/ui/device_model.h
     include/ui/alarm_model.h
@@ -28,6 +29,7 @@ add_library(ui_lib STATIC
     include/ui/series_stats.h
     include/ui/rule_model.h
     include/ui/chart_zoom.h
+    include/ui/device_filter_model.h
     include/ui/display_options.h
 )
 
