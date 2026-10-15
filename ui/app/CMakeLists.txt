@@ -22,7 +22,6 @@ qt_add_qml_module(factory-pulse
         qml/HistoryPanel.qml
         qml/RuleEditorPanel.qml
         qml/Icon.qml
-        qml/ShadowCard.qml
         qml/Theme.qml
         qml/GlowCard.qml
         qml/GlowEffect.qml

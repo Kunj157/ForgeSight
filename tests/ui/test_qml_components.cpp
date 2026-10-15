@@ -202,13 +202,13 @@ TEST_P(ComponentFileTest, InstantiatesWithoutErrors) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Primitives, ComponentFileTest,
-                         ::testing::Values("Icon.qml", "ShadowCard.qml", "GlowCard.qml",
-                                           "GlowEffect.qml", "Spotlight.qml", "BorderTrail.qml",
-                                           "AnimatedNumber.qml", "SlidingNumber.qml",
-                                           "StatusPill.qml", "ShimmerText.qml", "Skeleton.qml",
-                                           "SegmentedControl.qml", "FxButton.qml", "EmptyState.qml",
-                                           "ToastHost.qml", "Sidebar.qml", "TopBar.qml",
-                                           "ConnectionCard.qml", "Sparkline.qml", "FxCombo.qml"));
+                         ::testing::Values("Icon.qml", "GlowCard.qml", "GlowEffect.qml",
+                                           "Spotlight.qml", "BorderTrail.qml", "AnimatedNumber.qml",
+                                           "SlidingNumber.qml", "StatusPill.qml", "ShimmerText.qml",
+                                           "Skeleton.qml", "SegmentedControl.qml", "FxButton.qml",
+                                           "EmptyState.qml", "ToastHost.qml", "Sidebar.qml",
+                                           "TopBar.qml", "ConnectionCard.qml", "Sparkline.qml",
+                                           "FxCombo.qml"));
 
 } // namespace
 
