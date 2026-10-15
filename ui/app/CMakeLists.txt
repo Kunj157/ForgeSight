@@ -37,6 +37,9 @@ qt_add_qml_module(factory-pulse
         qml/FxButton.qml
         qml/EmptyState.qml
         qml/ToastHost.qml
+        qml/Sidebar.qml
+        qml/TopBar.qml
+        qml/ConnectionCard.qml
     RESOURCES
         qml/qmldir
 )
