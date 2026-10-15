@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QProcessEnvironment>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
@@ -10,6 +11,7 @@
 #include "ui/api_client.h"
 #include "ui/chart_zoom.h"
 #include "ui/device_model.h"
+#include "ui/display_options.h"
 #include "ui/history_model.h"
 #include "ui/offline_cache.h"
 #include "ui/rule_model.h"
@@ -36,6 +38,7 @@ int main(int argc, char* argv[]) {
     ui::SeriesStats seriesStats;
     ui::RuleModel ruleModel;
     ui::ChartZoom chartZoom;
+    ui::DisplayOptions displayOptions(QProcessEnvironment::systemEnvironment());
 
     QString apiBase = qEnvironmentVariable("FORGESIGHT_API", "http://127.0.0.1:8080");
     QString wsUrl = qEnvironmentVariable("FORGESIGHT_WS", "ws://127.0.0.1:8081");
@@ -129,6 +132,9 @@ int main(int argc, char* argv[]) {
     // — doing both would double-insert each rule.
     ctx->setContextProperty("ruleModel", &ruleModel);
     ctx->setContextProperty("chartZoom", &chartZoom);
+    // Startup theme / reduced-motion / 3D preferences (FORGESIGHT_THEME,
+    // FORGESIGHT_REDUCED_MOTION, FORGESIGHT_DISABLE_3D).
+    ctx->setContextProperty("displayOptions", &displayOptions);
 
     QObject::connect(&engine, &QQmlEngine::warnings, [](const QList<QQmlError>& warnings) {
         for (const auto& w : warnings) {

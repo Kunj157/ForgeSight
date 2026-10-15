@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "Theme.js" as Theme
 
 Rectangle {
     color: Theme.bgPanel
@@ -392,8 +391,8 @@ Rectangle {
                                                         ctx.lineTo(0, height)
                                                         ctx.closePath()
                                                         var g = ctx.createLinearGradient(0, 0, 0, height)
-                                                        g.addColorStop(0, col + "33")
-                                                        g.addColorStop(1, col + "00")
+                                                        g.addColorStop(0, Theme.alpha(col, 0.2))
+                                                        g.addColorStop(1, Theme.alpha(col, 0))
                                                         ctx.fillStyle = g
                                                         ctx.fill()
 

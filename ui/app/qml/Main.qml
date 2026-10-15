@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
-import "Theme.js" as Theme
 
 Window {
     id: root
@@ -29,6 +28,11 @@ Window {
     property string lastUpdatedText: "No data yet"
 
     function markFresh() { lastMessageAtMs = Date.now() }
+
+    Component.onCompleted: {
+        Theme.dark = displayOptions.theme !== "light"
+        Theme.reducedMotion = displayOptions.reducedMotion
+    }
 
     Timer {
         interval: 1000

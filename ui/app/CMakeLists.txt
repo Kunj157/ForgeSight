@@ -6,6 +6,12 @@ qt_add_executable(factory-pulse
     main.cpp
 )
 
+# Theme.qml is a singleton. The hand-written qml/qmldir declares it for the
+# implicit directory import that every panel uses (the files are loaded from
+# qrc:/app/qml/, not as module "app" types), so it is shipped as a resource
+# next to them.
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt_add_qml_module(factory-pulse
     URI app
     VERSION 1.0
@@ -17,7 +23,9 @@ qt_add_qml_module(factory-pulse
         qml/RuleEditorPanel.qml
         qml/Icon.qml
         qml/ShadowCard.qml
-        qml/Theme.js
+        qml/Theme.qml
+    RESOURCES
+        qml/qmldir
 )
 
 target_link_libraries(factory-pulse PRIVATE Qt6::Quick Qt6::Charts Qt6::Widgets ui_lib)
