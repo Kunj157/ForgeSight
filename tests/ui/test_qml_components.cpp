@@ -146,6 +146,37 @@ TEST_F(QmlComponentsTest, ShimmerTextSizesToItsTextAndDropsTheBandWhenStill) {
     EXPECT_LT(obj->property("layers").toInt(), animated_layers);
 }
 
+TEST_F(QmlComponentsTest, SegmentedControlTracksTheSelectedValue) {
+    QObject* obj = make("import QtQuick\n"
+                        "SegmentedControl {\n"
+                        "  model: [{label:'All',value:'all'},{label:'Critical',value:'critical',"
+                        "tone:'critical'}]\n"
+                        "}\n");
+    ASSERT_NE(obj, nullptr) << last_errors_.toStdString();
+    EXPECT_EQ(obj->property("currentIndex").toInt(), 0);
+    obj->setProperty("currentValue", "critical");
+    EXPECT_EQ(obj->property("currentIndex").toInt(), 1);
+    obj->setProperty("currentValue", "nope");
+    EXPECT_EQ(obj->property("currentIndex").toInt(), -1);
+}
+
+TEST_F(QmlComponentsTest, ToastHostCapsTheStack) {
+    QObject* obj =
+        make("import QtQuick\n"
+             "ToastHost {\n"
+             "  width: 800; height: 600; maxToasts: 2\n"
+             "  function burst() { for (var i = 0; i < 5; i++) show('t' + i, '', 'ok') }\n"
+             "}\n");
+    ASSERT_NE(obj, nullptr) << last_errors_.toStdString();
+    QMetaObject::invokeMethod(obj, "burst");
+    int count = -1;
+    for (QObject* child : obj->children()) {
+        if (QString(child->metaObject()->className()).contains("ListModel"))
+            count = child->property("count").toInt();
+    }
+    EXPECT_EQ(count, 2);
+}
+
 class ComponentFileTest : public QmlComponentsTest,
                           public ::testing::WithParamInterface<const char*> {};
 
@@ -158,7 +189,9 @@ INSTANTIATE_TEST_SUITE_P(Primitives, ComponentFileTest,
                          ::testing::Values("Icon.qml", "ShadowCard.qml", "GlowCard.qml",
                                            "GlowEffect.qml", "Spotlight.qml", "BorderTrail.qml",
                                            "AnimatedNumber.qml", "SlidingNumber.qml",
-                                           "StatusPill.qml", "ShimmerText.qml", "Skeleton.qml"));
+                                           "StatusPill.qml", "ShimmerText.qml", "Skeleton.qml",
+                                           "SegmentedControl.qml", "FxButton.qml", "EmptyState.qml",
+                                           "ToastHost.qml"));
 
 } // namespace
 
