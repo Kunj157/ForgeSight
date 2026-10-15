@@ -191,7 +191,8 @@ INSTANTIATE_TEST_SUITE_P(Primitives, ComponentFileTest,
                                            "AnimatedNumber.qml", "SlidingNumber.qml",
                                            "StatusPill.qml", "ShimmerText.qml", "Skeleton.qml",
                                            "SegmentedControl.qml", "FxButton.qml", "EmptyState.qml",
-                                           "ToastHost.qml"));
+                                           "ToastHost.qml", "Sidebar.qml", "TopBar.qml",
+                                           "ConnectionCard.qml"));
 
 } // namespace
 
