@@ -1,5 +1,4 @@
 import QtQuick
-import "Theme.js" as Theme
 
 // A card with a real soft drop-shadow, rendered on a Canvas using the
 // standard Context2D shadow* properties (no Qt5Compat.GraphicalEffects /
