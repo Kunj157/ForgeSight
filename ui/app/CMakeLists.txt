@@ -42,8 +42,22 @@ qt_add_qml_module(factory-pulse
         qml/DeviceCard.qml
         qml/Sparkline.qml
         qml/FxCombo.qml
+        qml/PlantView25D.qml
     RESOURCES
         qml/qmldir
 )
 
 target_link_libraries(factory-pulse PRIVATE Qt6::Quick Qt6::Charts Qt6::Widgets ui_lib)
+
+# Optional 3D plant view. Without Qt Quick 3D the Devices panel falls back to
+# the 2.5D isometric view at runtime, so the app still builds and runs.
+find_package(Qt6 QUIET COMPONENTS Quick3D)
+if(Qt6Quick3D_FOUND)
+    message(STATUS "Qt Quick 3D found — building the 3D plant view")
+    target_sources(factory-pulse PRIVATE plant_instancing.cpp plant_instancing.h)
+    target_link_libraries(factory-pulse PRIVATE Qt6::Quick3D)
+    target_compile_definitions(factory-pulse PRIVATE FORGESIGHT_HAVE_QUICK3D=1)
+    qt_target_qml_sources(factory-pulse QML_FILES qml/PlantView3D.qml qml/Splash3D.qml)
+else()
+    message(STATUS "Qt Quick 3D not found — 3D plant view disabled (2.5D fallback only)")
+endif()
