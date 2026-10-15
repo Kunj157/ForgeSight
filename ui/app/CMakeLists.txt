@@ -40,6 +40,8 @@ qt_add_qml_module(factory-pulse
         qml/Sidebar.qml
         qml/TopBar.qml
         qml/ConnectionCard.qml
+        qml/DeviceCard.qml
+        qml/Sparkline.qml
     RESOURCES
         qml/qmldir
 )
