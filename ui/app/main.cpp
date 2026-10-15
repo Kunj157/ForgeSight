@@ -8,6 +8,10 @@
 
 #include <cstdio>
 
+#ifdef FORGESIGHT_HAVE_QUICK3D
+#include "plant_instancing.h"
+#endif
+
 #include "ui/alarm_model.h"
 #include "ui/api_client.h"
 #include "ui/chart_zoom.h"
@@ -16,6 +20,7 @@
 #include "ui/display_options.h"
 #include "ui/history_model.h"
 #include "ui/offline_cache.h"
+#include "ui/plant_scene_model.h"
 #include "ui/rule_model.h"
 #include "ui/series_stats.h"
 #include "ui/time_format.h"
@@ -47,6 +52,14 @@ int main(int argc, char* argv[]) {
 
     // Live per-section views of deviceModel for the device tree.
     qmlRegisterType<ui::DeviceFilterModel>("ForgeSight.Models", 1, 0, "DeviceFilterModel");
+    // Live plant-floor layout shared by the 3D view and its 2.5D fallback.
+    qmlRegisterType<ui::PlantSceneModel>("ForgeSight.Models", 1, 0, "PlantSceneModel");
+#ifdef FORGESIGHT_HAVE_QUICK3D
+    qmlRegisterType<ui::PlantInstancing>("ForgeSight.Plant3D", 1, 0, "PlantInstancing");
+    constexpr bool quick3dAvailable = true;
+#else
+    constexpr bool quick3dAvailable = false;
+#endif
 
     QString apiBase = qEnvironmentVariable("FORGESIGHT_API", "http://127.0.0.1:8080");
     QString wsUrl = qEnvironmentVariable("FORGESIGHT_WS", "ws://127.0.0.1:8081");
@@ -125,6 +138,12 @@ int main(int argc, char* argv[]) {
     QTimer::singleShot(300, &apiClient, &ui::ApiClient::bootstrap);
 
     wsClient.connectToServer();
+    // Close the socket (and stop reconnecting) while the event loop is still
+    // running, instead of tearing a possibly half-open QWebSocket down from
+    // ~WsClient after the QML scene is gone — that path intermittently
+    // corrupted the heap on quit after a reconnect.
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &wsClient,
+                     [&wsClient]() { wsClient.disconnectFromServer(); });
 
     auto* ctx = engine.rootContext();
     ctx->setContextProperty("deviceModel", &deviceModel);
@@ -143,6 +162,8 @@ int main(int argc, char* argv[]) {
     // Startup theme / reduced-motion / 3D preferences (FORGESIGHT_THEME,
     // FORGESIGHT_REDUCED_MOTION, FORGESIGHT_DISABLE_3D).
     ctx->setContextProperty("displayOptions", &displayOptions);
+    // Whether this build includes the Qt Quick 3D plant view.
+    ctx->setContextProperty("quick3dAvailable", quick3dAvailable);
 
     QObject::connect(&engine, &QQmlEngine::warnings, [](const QList<QQmlError>& warnings) {
         for (const auto& w : warnings) {
