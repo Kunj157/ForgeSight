@@ -84,6 +84,18 @@ TEST_F(QmlComponentsTest, ThemeStatusHelpersCoverEveryState) {
     EXPECT_NEAR(obj->property("halfAlpha").toDouble(), 0.5, 0.01);
 }
 
+TEST_F(QmlComponentsTest, BorderTrailStopsUnderReducedMotion) {
+    QObject* obj = make("import QtQuick\n"
+                        "BorderTrail { width: 200; height: 100 }\n");
+    ASSERT_NE(obj, nullptr) << last_errors_.toStdString();
+    EXPECT_GT(obj->property("perimeter").toDouble(), 500.0);
+    EXPECT_TRUE(obj->property("_active").toBool());
+    QObject* toggler =
+        make("import QtQuick\nItem { Component.onCompleted: Theme.reducedMotion = true }\n");
+    ASSERT_NE(toggler, nullptr);
+    EXPECT_FALSE(obj->property("_active").toBool());
+}
+
 class ComponentFileTest : public QmlComponentsTest,
                           public ::testing::WithParamInterface<const char*> {};
 
@@ -93,7 +105,8 @@ TEST_P(ComponentFileTest, InstantiatesWithoutErrors) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Primitives, ComponentFileTest,
-                         ::testing::Values("Icon.qml", "ShadowCard.qml"));
+                         ::testing::Values("Icon.qml", "ShadowCard.qml", "GlowCard.qml",
+                                           "GlowEffect.qml", "Spotlight.qml", "BorderTrail.qml"));
 
 } // namespace
 
