@@ -6,6 +6,27 @@
 
 Qt/C++ desktop platform for real-time industrial device monitoring — live dashboards, alarm rules, and historical analytics over MQTT-fed sensor data.
 
+**Live site:** [kunj157.github.io/ForgeSight](https://kunj157.github.io/ForgeSight/) · **Download:** [Linux AppImage](https://github.com/Kunj157/ForgeSight/releases/latest/download/ForgeSight-x86_64.AppImage)
+
+![ForgeSight desktop app: live device cards, the 3D plant floor, alarm triage and history](docs/media/forgesight-tour.gif)
+
+<sub>Tour clip as [MP4](docs/media/forgesight-tour.mp4) (0.5 MB).</sub>
+
+## The desktop app
+
+A native Qt Quick dashboard designed for the control room. It defaults to a dark, ISA-101-style theme where saturated colour is reserved for abnormal states, and it also has a light theme. Motion is used to show what changed.
+
+| | |
+|---|---|
+| ![3D plant floor](docs/media/floor-3d.webp) | ![Live device cards](docs/media/devices.webp) |
+| **3D plant floor.** Every sensor is a GPU-instanced pillar (Qt Quick 3D, one draw call per layer at any device count). Height follows the live value and colour follows state. Critical devices emit expanding red rings. Orbit, zoom and click to select; selection is shared with the card list. Falls back to a 2.5D isometric view without Qt Quick 3D or on software rendering. | **Devices.** Plant → floor → device cards backed by live filtered models, so each reading updates one card in place. Each card shows an easing value, a trend chip, a rolling sparkline and its range. A KPI strip covers sensors, healthy %, critical count and floors. Smooth at 600 live sensors. |
+| ![Alarm triage](docs/media/alarms.webp) | ![History](docs/media/history.webp) |
+| **Alarms.** Summary counters, a sliding severity filter, pulsing pills and rails for live critical alarms, and one-click acknowledge with an acknowledge animation. Acks made offline are queued and flushed on reconnect. | **History.** Themed QtCharts with an area fill, anomaly markers, a snapping crosshair readout, pan/zoom, min/avg/max stats and CSV/PDF export. |
+| ![Rule editor](docs/media/rules.webp) | ![Light theme](docs/media/devices-light.webp) |
+| **Rules.** Threshold rules with a live sentence preview ("Raise a CRITICAL alarm when …"), segmented comparator and severity controls, and inline validation. | **Light theme**, switchable live from the header (or `FORGESIGHT_THEME=light`). |
+
+The shell shows connection state at all times: **connecting / live / stale / offline**, with data age, a freshness meter, queued offline acks, and toasts for connection loss or recovery and for new critical alarms. Reusable QML primitives live in `ui/app/qml/`: `GlowCard` (hover spotlight, glow, border trail), `AnimatedNumber`, `SlidingNumber`, `StatusPill`, `ShimmerText`, `Skeleton`, `SegmentedControl`, `FxButton`, `ToastHost` and `EmptyState`. They are reimplementations of the Motion Primitives effects that need nothing newer than Qt 6.4.
+
 ## Status
 
 **Production-grade MVP complete — [`v1.0.0`](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0) released.** All 10 planned phases (repo/CI, simulators, ingestion, alarm engine, REST/WS API, dashboard, history/export, offline mode, packaging/load test, release) are done end-to-end, built test-first per this repo's strict TDD workflow:
@@ -13,7 +34,7 @@ Qt/C++ desktop platform for real-time industrial device monitoring — live dash
 - **Live stack**: MQTT-fed simulators → ingestion → PostgreSQL → rule-based alarm engine → REST/WebSocket API → Qt Quick dashboard (plant/floor device tree, alarm ack, historical charts + CSV/PDF export).
 - **Resilient by design**: SQLite-backed offline cache restores last-known state on cold start, queues alarm acks while disconnected, and flushes them on reconnect; a staleness-aware UI indicator distinguishes "no fresh data" from "socket closed."
 - **Secured**: optional API-key auth on every HTTP/WebSocket request, configurable bind address, and TLS-bypass behavior gated behind an explicit opt-in rather than silently ignoring certificate errors.
-- **Tested**: 172 passing tests (`ctest`) across ingestion/alarm-engine/api/ui, plus an AddressSanitizer CI job (zero leaks) and Python simulator tests.
+- **Tested**: 282 passing tests (`ctest`) across ingestion/alarm-engine/api/ui, plus an AddressSanitizer CI job (zero leaks) and Python simulator tests.
 - **Load-tested**: up to 600 simulated devices (~1,800 msg/s) with sub-second p95 ingestion latency on an 8-core dev laptop — see [Load testing](#load-testing) for the full numbers.
 - **Shipped**: Dockerized backend (single combined image for ingestion/alarm-engine/api), a self-contained Linux AppImage for the desktop app, and a tag-triggered `release.yml` that publishes both to GHCR and GitHub Releases automatically.
 
@@ -21,7 +42,8 @@ See `production-roadmap.md` for the full phase-by-phase history and progress log
 
 ## Prerequisites
 
-- Qt 6.4+ (Quick, Charts, WebSockets, HttpServer, Network)
+- Qt 6.4+ (Quick, Quick Controls, Quick Shapes, Charts, WebSockets, HttpServer, Network)
+- Optional: Qt Quick 3D (`qt6-quick3d-dev` on Ubuntu) for the 3D plant floor; without it the app builds and uses the 2.5D view
 - CMake 3.20+, C++20 compiler
 - PostgreSQL with database `forgesight`
 - Mosquitto MQTT broker on `localhost:1883`
@@ -56,6 +78,9 @@ Optional env overrides:
 | `FORGESIGHT_BIND` | `0.0.0.0` — interface the `api` binary listens on |
 | `FORGESIGHT_API_KEY` | unset — see [Security](#security) below |
 | `FORGESIGHT_GRPC_PORT` | unset / `0` — gRPC listener off; see [Architecture](#architecture-mvp) |
+| `FORGESIGHT_THEME` | `dark` — or `light` (also switchable in the app header) |
+| `FORGESIGHT_REDUCED_MOTION` | unset — `1` turns off looping and decorative animation |
+| `FORGESIGHT_DISABLE_3D` | unset — `1` always uses the 2.5D plant view |
 
 Stop services:
 
@@ -217,6 +242,14 @@ gRPC is a second client surface on the same `api` binary (CLI / scripts), not a 
 
 ```bash
 ./build/api/api --grpc-port 50051 --api-key "$FORGESIGHT_API_KEY"
+```
+
+## Landing page
+
+The marketing site at [kunj157.github.io/ForgeSight](https://kunj157.github.io/ForgeSight/) lives in `site/`. It is built with Vite, React, Tailwind, motion and react-three-fiber, and has its own lockfile, separate from the C++ build. `.github/workflows/landing.yml` deploys it to GitHub Pages on pushes to `main` or `dev` that touch `site/` or `docs/media/`.
+
+```bash
+cd site && pnpm install && pnpm dev
 ```
 
 ## Workflow

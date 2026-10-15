@@ -1,6 +1,6 @@
 # ForgeSight — Production Roadmap & Session Handoff
 
-**Last updated:** 2026-09-20 (**`v1.1.0` released** — 2 production fixes + 3 UI features on top of the v1.0.0 MVP; see the v1.1.0 progress-log entry below)  
+**Last updated:** 2026-10-15 (UI redesign milestone: new theme, motion primitives, 3D plant floor, landing page; see the progress log). Previously 2026-09-20 (**`v1.1.0` released** — 2 production fixes + 3 UI features on top of the v1.0.0 MVP; see the v1.1.0 progress-log entry below)  
 **Branch:** `dev` (released to `main`, latest tag `v1.1.0`)  
 **Open PRs:** none from this roadmap — everything through PR #55 (the `dev`→`main` release) **MERGED**  
 **Open issues:** #10 (this doc's standing docs-sync tracker) remains open by design  
@@ -281,3 +281,22 @@ Ordered by priority. Each item should be: **GitHub issue → `feature/<n>-…` f
 - **2026-09-21 (later):** Closed the remaining two nice-to-haves from that list.
   - **#65 → PR #66 (feat, history pan/zoom):** `ui::ChartZoom` (focal-preserving zoom + fractional pan, 7 tests) plus HistoryPanel wiring — drag pans the time window, wheel zooms about the pointer, Reset view restores the loaded extents. Reset is stacked above the pan overlay so it still receives clicks. Y stays fit-to-data. Merged to `dev`, all 5 CI checks green.
   - **#67 → PR #68 (feat, C-MAPSS/SECOM replay):** `ReplayGenerator` walks a NASA C-MAPSS or UCI SECOM file instead of Gaussian noise. Documented column map onto temperature/pressure/vibration/flow/current, min-max scaled into each sensor's `[min, max]`. C-MAPSS units zip onto devices; late-life cycles and SECOM fail labels are `anomaly`. CLI: `--replay {cmapss,secom} --replay-file`. Fetch script writes gitignored `data/`. 21 new simulator tests on tiny fixtures (57/57 total). Datasets themselves are not committed.
+- **2026-10-15:** **UI redesign** (milestone "UI redesign", PRs #81–#103). The desktop dashboard got a full visual and motion overhaul. The work also fixed real defects found while profiling it under live load.
+  - **Theme and primitives:** #81 replaced `Theme.js` with a reactive `Theme` singleton (dark control-room and light token sets, ok/warning/critical/stale/info). `DisplayOptions` reads `FORGESIGHT_THEME`, `FORGESIGHT_REDUCED_MOTION` and `FORGESIGHT_DISABLE_3D`. A new `ui_qml_tests` binary instantiates every component from the source tree. #83, #85 and #91 added native QML versions of the Motion Primitives effects (Qt 6.4: no MultiEffect, no custom shaders):
+    - card, spotlight, glow and border trail (on QtQuick.Shapes, now an apt dependency);
+    - animated and sliding numbers, status pill, text shimmer, skeleton;
+    - sliding-pill segmented control, buttons, empty states, toasts.
+  - **Shell:** #93 and #97 added a sidebar with a sliding nav pill, a connection card with a freshness meter, and a header with an animated title, KPI pills and a theme toggle. A connecting/live/stale/offline link state drives panel transitions and toasts.
+  - **Panels:** #99 rebuilt the device tree on the new live `DeviceFilterModel` (#89). The old tree rebuilt every card each second, so sparklines never held history. It added the alarm summary (`AlarmModel::count_matching`) with an ack animation, a themed history chart with a crosshair, and the rule editor's live sentence preview. It also fixed the "Rule created." message after a delete and the misaligned alarm message column.
+  - **3D:** #95 added `PlantLayout`/`PlantSceneModel` (unit-tested). #101 added the Qt Quick 3D plant floor:
+    - `QQuick3DInstancing`, three draw calls at any device count, shadows, SSAO, critical rings;
+    - ray-cast picking synced with the card list;
+    - a 2.5D Canvas fallback and a 3D connecting splash.
+    It is optional at build time; CI and release now install `qt6-quick3d-dev`.
+  - **Production fixes found along the way:**
+    - #87: offline-cache SQLite writes ran synchronously per reading on the GUI thread and starved the event loop (one 500 ms timer tick in 4 s at 36 devices). They are now batched, coalesced and on WAL.
+    - #97: the QML engine outlived the models on shutdown.
+    - #101: an intermittent heap-corruption abort in `~QWebSocket` on quit after a reconnect. The socket is now closed in `aboutToQuit`.
+  - **Measured:** at 600 simulated devices on llvmpipe software GL, the old UI fired 0 of 80 250 ms timer ticks in 20 s. The new one fires about 64 of 80.
+  - **Landing page:** #103 added `site/` (Vite + React + Tailwind + motion + three.js), deployed by `landing.yml` to https://kunj157.github.io/ForgeSight/. The README now shows the new UI (`docs/media/`).
+  - **Process note:** the user waived the 400-line PR cap, per-PR CI waits and strict TDD for pure QML work partway through. Logic changes (filter model, layout, alarm counts, cache batching, display options) were still written test-first. Local verification used Qt 6.4.2 from aqtinstall (the same version as Ubuntu 24.04 CI) under Xvfb with a mock REST/WS backend on alternate ports.
