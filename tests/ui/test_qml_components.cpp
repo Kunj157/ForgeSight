@@ -177,6 +177,22 @@ TEST_F(QmlComponentsTest, ToastHostCapsTheStack) {
     EXPECT_EQ(count, 2);
 }
 
+TEST_F(QmlComponentsTest, SparklineBuildsGeometryOnlyWithTwoOrMorePoints) {
+    QObject* obj = make("import QtQuick\n"
+                        "Sparkline {\n"
+                        "  width: 200; height: 40\n"
+                        "  property int linePoints: _line.length\n"
+                        "  property int fillPoints: _fill.length\n"
+                        "}\n");
+    ASSERT_NE(obj, nullptr) << last_errors_.toStdString();
+    obj->setProperty("values", QVariantList{5.0});
+    EXPECT_EQ(obj->property("linePoints").toInt(), 0);
+    obj->setProperty("values", QVariantList{1.0, 3.0, 2.0});
+    EXPECT_EQ(obj->property("linePoints").toInt(), 3);
+    // closed under the line: two extra corner points
+    EXPECT_EQ(obj->property("fillPoints").toInt(), 5);
+}
+
 class ComponentFileTest : public QmlComponentsTest,
                           public ::testing::WithParamInterface<const char*> {};
 
@@ -186,13 +202,13 @@ TEST_P(ComponentFileTest, InstantiatesWithoutErrors) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Primitives, ComponentFileTest,
-                         ::testing::Values("Icon.qml", "ShadowCard.qml", "GlowCard.qml",
-                                           "GlowEffect.qml", "Spotlight.qml", "BorderTrail.qml",
-                                           "AnimatedNumber.qml", "SlidingNumber.qml",
-                                           "StatusPill.qml", "ShimmerText.qml", "Skeleton.qml",
-                                           "SegmentedControl.qml", "FxButton.qml", "EmptyState.qml",
-                                           "ToastHost.qml", "Sidebar.qml", "TopBar.qml",
-                                           "ConnectionCard.qml"));
+                         ::testing::Values("Icon.qml", "GlowCard.qml", "GlowEffect.qml",
+                                           "Spotlight.qml", "BorderTrail.qml", "AnimatedNumber.qml",
+                                           "SlidingNumber.qml", "StatusPill.qml", "ShimmerText.qml",
+                                           "Skeleton.qml", "SegmentedControl.qml", "FxButton.qml",
+                                           "EmptyState.qml", "ToastHost.qml", "Sidebar.qml",
+                                           "TopBar.qml", "ConnectionCard.qml", "Sparkline.qml",
+                                           "FxCombo.qml"));
 
 } // namespace
 

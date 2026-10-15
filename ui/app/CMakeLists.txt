@@ -22,7 +22,6 @@ qt_add_qml_module(factory-pulse
         qml/HistoryPanel.qml
         qml/RuleEditorPanel.qml
         qml/Icon.qml
-        qml/ShadowCard.qml
         qml/Theme.qml
         qml/GlowCard.qml
         qml/GlowEffect.qml
@@ -40,6 +39,9 @@ qt_add_qml_module(factory-pulse
         qml/Sidebar.qml
         qml/TopBar.qml
         qml/ConnectionCard.qml
+        qml/DeviceCard.qml
+        qml/Sparkline.qml
+        qml/FxCombo.qml
     RESOURCES
         qml/qmldir
 )

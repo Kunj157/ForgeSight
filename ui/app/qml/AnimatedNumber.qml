@@ -15,6 +15,8 @@ Text {
     property color upColor: Theme.success
     property color downColor: Theme.info
     property int duration: 520
+    // false = jump straight to new values (e.g. while scrolled out of view).
+    property bool animated: true
 
     property real displayed: value
     property real _flash: 0
@@ -22,12 +24,12 @@ Text {
     property real _last: value
 
     Behavior on displayed {
-        enabled: !Theme.reducedMotion
+        enabled: root.animated && !Theme.reducedMotion
         NumberAnimation { duration: root.duration; easing.type: Easing.OutCubic }
     }
 
     onValueChanged: {
-        if (flashOnChange && !Theme.reducedMotion && isFinite(_last) && value !== _last) {
+        if (flashOnChange && animated && !Theme.reducedMotion && isFinite(_last) && value !== _last) {
             _flashColor = value > _last ? upColor : downColor
             flashAnim.restart()
         }
@@ -44,6 +46,6 @@ Text {
     }
 
     text: isFinite(displayed) ? prefix + displayed.toFixed(decimals) + suffix : "—"
-    color: _flash > 0 ? Qt.tint(baseColor, Theme.alpha(_flashColor, 0.65 * _flash)) : baseColor
+    color: _flash > 0 ? Qt.tint(baseColor, Theme.alpha(_flashColor, 0.45 * _flash)) : baseColor
     font.family: Theme.fontFamilyMono
 }

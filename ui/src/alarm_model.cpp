@@ -88,6 +88,18 @@ void AlarmModel::acknowledge(qint64 alarm_id) {
     Q_EMIT unacknowledgedCountChanged();
 }
 
+int AlarmModel::count_matching(const QString& severity, bool unacknowledged_only) const {
+    int n = 0;
+    for (const auto& a : alarms_) {
+        if (!severity.isEmpty() && a.severity != severity)
+            continue;
+        if (unacknowledged_only && a.acknowledged)
+            continue;
+        ++n;
+    }
+    return n;
+}
+
 void AlarmModel::clear() {
     if (alarms_.isEmpty())
         return;

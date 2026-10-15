@@ -30,6 +30,8 @@ Item {
     readonly property point pointer: hover.point.position
 
     HoverHandler { id: hover; enabled: root.interactive }
+    Timer { id: spotHold; interval: Theme.motionMed + 60 }
+    onHoveredChanged: if (!hovered) spotHold.restart()
 
     transform: Translate {
         y: root.lift && root.hovered ? -2 : 0
@@ -87,7 +89,8 @@ Item {
 
     Loader {
         anchors.fill: parent
-        active: root.spotlight && (root.hovered || (item && item.visible))
+        // Stay loaded briefly after hover ends so the fade-out can play.
+        active: root.spotlight && (root.hovered || spotHold.running)
         sourceComponent: Spotlight {
             radius: root.radius
             color: root.spotlightColor
