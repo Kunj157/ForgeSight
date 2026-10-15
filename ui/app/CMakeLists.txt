@@ -24,6 +24,10 @@ qt_add_qml_module(factory-pulse
         qml/Icon.qml
         qml/ShadowCard.qml
         qml/Theme.qml
+        qml/GlowCard.qml
+        qml/GlowEffect.qml
+        qml/Spotlight.qml
+        qml/BorderTrail.qml
     RESOURCES
         qml/qmldir
 )

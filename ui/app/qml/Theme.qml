@@ -30,7 +30,7 @@ QtObject {
 
     readonly property color border: dark ? "#1b212b" : "#e3e7ed"
     readonly property color borderStrong: dark ? "#2b3341" : "#cbd2dc"
-    readonly property color borderHighlight: dark ? "#ffffff14" : "#ffffffcc"
+    readonly property color borderHighlight: dark ? "#14ffffff" : "#ccffffff"
     readonly property color divider: dark ? "#151a22" : "#eceff3"
 
     // —— Text ——
@@ -61,7 +61,7 @@ QtObject {
     readonly property color staleBg: dark ? "#1c1829" : "#f1edfb"
     readonly property color normalBg: dark ? "#151a22" : "#f0f2f5"
 
-    readonly property color shadow: dark ? "#8c000000" : "#1f1b2433"
+    readonly property color shadow: dark ? "#8c000000" : "#331f1b24"
 
     // —— Shape & spacing ——
     readonly property int radiusSm: 6
