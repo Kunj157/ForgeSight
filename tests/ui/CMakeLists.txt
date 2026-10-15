@@ -22,6 +22,7 @@ add_executable(ui_tests
     test_series_stats.cpp
     test_rule_model.cpp
     test_chart_zoom.cpp
+    test_device_filter_model.cpp
     test_display_options.cpp
 )
 
