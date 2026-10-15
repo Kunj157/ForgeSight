@@ -21,6 +21,9 @@ GlowCard {
     // recording history but skip animation, sparkline geometry and stats,
     // which keeps 600 live tiles affordable.
     property bool inView: true
+    property bool selected: false
+    signal activated()
+    signal locateRequested()
 
     readonly property bool critical: status === "critical"
     readonly property color tone: critical ? Theme.critical : Theme.accent
@@ -50,8 +53,13 @@ GlowCard {
 
     opacity: 0
     trail: critical && inView
-    borderColor: critical ? Theme.alpha(Theme.critical, 0.45)
+    borderColor: selected ? Theme.accent
+               : critical ? Theme.alpha(Theme.critical, 0.45)
                : hovered ? Theme.borderStrong : Theme.border
+    glow: selected
+    glowColor: Theme.accent
+
+    TapHandler { onTapped: card.activated() }
     spotlightColor: tone
 
     SequentialAnimation {
@@ -103,6 +111,20 @@ GlowCard {
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontXs
                     color: Theme.textMuted
+                }
+            }
+            Rectangle {
+                visible: card.selected
+                implicitWidth: 24; implicitHeight: 24
+                radius: 12
+                color: locateMouse.containsMouse ? Theme.accent : Theme.accentSoft
+                Icon { anchors.centerIn: parent; name: "cube"; width: 13; height: 13; color: locateMouse.containsMouse ? "#ffffff" : Theme.accent }
+                MouseArea {
+                    id: locateMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: card.locateRequested()
                 }
             }
             StatusPill {

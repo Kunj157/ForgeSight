@@ -8,6 +8,25 @@ Rectangle {
     color: "transparent"
 
     property string searchText: ""
+    // "cards" (the live tree) or "floor" (3D / 2.5D plant overview).
+    property string viewMode: "cards"
+    // "<deviceId>|<sensor>" of the selected sensor, shared by both views.
+    property string selectedKey: ""
+    property bool failed3d: false
+    readonly property bool use3d: quick3dAvailable && displayOptions.enable3d && !failed3d
+                                  && GraphicsInfo.api !== GraphicsInfo.Software
+
+    function locate(key) {
+        selectedKey = key
+        viewMode = "floor"
+        if (floorLoader.item && floorLoader.item.focusOn)
+            floorLoader.item.focusOn(key)
+    }
+    function showInList(key) {
+        selectedKey = key
+        viewMode = "cards"
+        searchInput.text = key.split("|")[0]
+    }
     // Bumped every few seconds so relative "updated" labels age without
     // per-card timers.
     property int tick: 0
@@ -65,6 +84,8 @@ Rectangle {
 
     DeviceFilterModel { id: everything; sourceDevices: deviceModel }
     DeviceFilterModel { id: matches; sourceDevices: deviceModel; search: panel.searchText }
+    // Only laid out while the floor view is showing.
+    PlantSceneModel { id: plantScene; sourceDevices: panel.viewMode === "floor" ? deviceModel : null }
 
     component Kpi: GlowCard {
         id: kpi
@@ -146,7 +167,17 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.spaceMd
 
+            SegmentedControl {
+                currentValue: panel.viewMode
+                onActivated: function(v) { panel.viewMode = v }
+                model: [
+                    { label: "Cards", value: "cards" },
+                    { label: "3D floor", value: "floor" },
+                ]
+            }
+
             Text {
+                visible: panel.viewMode === "cards"
                 text: panel.searchText.length > 0
                       ? matches.count + " of " + everything.count + " sensors match"
                       : "Plant floor"
@@ -159,6 +190,7 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             Rectangle {
+                visible: panel.viewMode === "cards"
                 implicitHeight: 36
                 implicitWidth: 300
                 radius: Theme.radiusMd
@@ -226,6 +258,7 @@ Rectangle {
         // —— Plant -> floor -> device tree ——
         ScrollView {
             id: scroller
+            visible: panel.viewMode === "cards"
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -409,6 +442,9 @@ Rectangle {
                                                 timestamp: model.timestamp
                                                 tick: panel.tick
                                                 revealIndex: index
+                                                selected: panel.selectedKey === model.deviceId + "|" + model.sensor
+                                                onActivated: panel.selectedKey = model.deviceId + "|" + model.sensor
+                                                onLocateRequested: panel.locate(model.deviceId + "|" + model.sensor)
                                                 inView: {
                                                     scroller.contentItem.contentY
                                                     panel.tick
@@ -422,6 +458,102 @@ Rectangle {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // —— Plant floor (3D, or 2.5D fallback) ——
+        GlowCard {
+            id: floorCard
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: panel.viewMode === "floor"
+            interactive: false
+            clip: true
+
+            Loader {
+                id: floorLoader
+                anchors.fill: parent
+                anchors.margins: 1
+                active: panel.viewMode === "floor"
+                source: panel.use3d ? "PlantView3D.qml" : "PlantView25D.qml"
+                onStatusChanged: {
+                    if (status === Loader.Error && panel.use3d) {
+                        console.warn("3D plant view unavailable — using the 2.5D view")
+                        panel.failed3d = true
+                    }
+                }
+                onLoaded: {
+                    item.scene = plantScene
+                    item.selectedKey = Qt.binding(function() { return panel.selectedKey })
+                    item.picked.connect(function(key) { panel.selectedKey = key })
+                    if (panel.selectedKey.length > 0 && item.focusOn)
+                        item.focusOn(panel.selectedKey)
+                }
+            }
+
+            // Legend + renderer badge
+            Row {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.margins: Theme.spaceMd
+                spacing: Theme.spaceSm
+                StatusPill { status: "info"; showDot: false; text: panel.use3d ? "Qt Quick 3D · instanced" : "2.5D view" }
+                StatusPill { status: "normal"; text: "height = live value" }
+                StatusPill { status: "critical"; pulse: true; text: plantScene.criticalCount + " critical" }
+            }
+            Text {
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                anchors.margins: Theme.spaceMd
+                text: panel.use3d ? "Drag to orbit · scroll to zoom · click a pillar" : "Drag to rotate · click a pillar"
+                font.family: Theme.fontFamily
+                font.pixelSize: 10
+                color: Theme.textMuted
+            }
+
+            // Selected device details
+            GlowCard {
+                id: detail
+                readonly property int row: plantScene.deviceCount >= 0 && panel.selectedKey.length > 0
+                                           ? plantScene.indexOfKey(panel.selectedKey) : -1
+                readonly property var dev: { plantScene.deviceCount; return row >= 0 ? plantScene.devices()[row] : null }
+                visible: dev !== null
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: Theme.spaceMd
+                width: 250
+                height: 150
+                elevation: 2
+                interactive: false
+                trail: dev !== null && dev.critical
+                Column {
+                    anchors.fill: parent
+                    anchors.margins: Theme.spaceLg
+                    spacing: 6
+                    Row {
+                        spacing: Theme.spaceSm
+                        Text {
+                            text: detail.dev ? detail.dev.deviceId : ""
+                            font.family: Theme.fontFamily; font.pixelSize: Theme.fontMd; font.bold: true
+                            color: Theme.textPrimary
+                        }
+                        StatusPill { status: detail.dev && detail.dev.critical ? "critical" : "normal"; pulse: detail.dev && detail.dev.critical }
+                    }
+                    Text {
+                        text: detail.dev ? detail.dev.sensor + " · " + detail.dev.plant + " / " + detail.dev.floor : ""
+                        font.family: Theme.fontFamily; font.pixelSize: Theme.fontXs; color: Theme.textMuted
+                    }
+                    AnimatedNumber {
+                        value: detail.dev ? detail.dev.value : 0
+                        font.pixelSize: Theme.fontDisplay; font.bold: true
+                        baseColor: detail.dev && detail.dev.critical ? Theme.critical : Theme.textPrimary
+                    }
+                    Row {
+                        spacing: Theme.spaceSm
+                        FxButton { text: "Show card"; icon: "grid"; compact: true; onClicked: panel.showInList(panel.selectedKey) }
+                        FxButton { text: "Clear"; icon: "close"; compact: true; onClicked: panel.selectedKey = "" }
                     }
                 }
             }
