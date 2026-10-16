@@ -22,6 +22,9 @@ add_executable(ui_tests
     test_series_stats.cpp
     test_rule_model.cpp
     test_chart_zoom.cpp
+    test_plant_layout.cpp
+    test_device_filter_model.cpp
+    test_display_options.cpp
 )
 
 target_link_libraries(ui_tests PRIVATE
@@ -37,3 +40,11 @@ target_link_libraries(ui_tests PRIVATE
 target_include_directories(ui_tests PRIVATE ${CMAKE_SOURCE_DIR}/ui/include)
 
 gtest_discover_tests(ui_tests)
+
+# QML component smoke tests. A separate binary because Qt Quick types need a
+# QGuiApplication, while ui_tests creates a plain QCoreApplication.
+add_executable(ui_qml_tests test_qml_components.cpp)
+target_link_libraries(ui_qml_tests PRIVATE GTest::gtest Qt6::Quick Qt6::Qml)
+target_compile_definitions(ui_qml_tests PRIVATE
+    FORGESIGHT_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../ui/app/qml")
+gtest_discover_tests(ui_qml_tests DISCOVERY_MODE PRE_TEST)

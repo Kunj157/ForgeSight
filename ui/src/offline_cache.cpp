@@ -6,18 +6,29 @@
 #include <QSqlQuery>
 #include <QStandardPaths>
 
+#include <utility>
+
 namespace ui {
 
 namespace {
 QAtomicInt g_connection_counter{0};
+constexpr int kDefaultFlushIntervalMs = 1000;
+
+QString pending_key(const QString& deviceId, const QString& sensor) {
+    return deviceId + QChar(0x1f) + sensor;
 }
+} // namespace
 
 OfflineCache::OfflineCache(QObject* parent) : QObject(parent) {
     connection_name_ = QStringLiteral("forgesight_offline_cache_%1")
                            .arg(g_connection_counter.fetchAndAddOrdered(1));
+    flush_timer_.setSingleShot(true);
+    flush_timer_.setInterval(kDefaultFlushIntervalMs);
+    connect(&flush_timer_, &QTimer::timeout, this, &OfflineCache::flush);
 }
 
 OfflineCache::~OfflineCache() {
+    write_pending();
     if (db_.isValid()) {
         db_.close();
         // Drop our own handle to the connection before removeDatabase() —
@@ -30,6 +41,7 @@ OfflineCache::~OfflineCache() {
 }
 
 bool OfflineCache::open(const QString& path) {
+    write_pending();
     if (db_.isValid()) {
         db_.close();
         db_ = QSqlDatabase();
@@ -56,6 +68,9 @@ QString OfflineCache::default_path() {
 
 void OfflineCache::ensure_schema() {
     QSqlQuery query(db_);
+    // WAL + NORMAL sync: commits append to the log without an fsync each.
+    query.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
+    query.exec(QStringLiteral("PRAGMA synchronous=NORMAL"));
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS device_states ("
                               "device_id TEXT NOT NULL, "
                               "sensor TEXT NOT NULL, "
@@ -76,28 +91,63 @@ void OfflineCache::saveDeviceState(const QString& deviceId, const QString& senso
     if (!open_)
         return;
 
-    QSqlQuery query(db_);
+    pending_.insert(
+        pending_key(deviceId, sensor),
+        CachedDeviceState{deviceId, sensor, value, unit, timestamp, anomaly, plant, floor});
+    if (!flush_timer_.isActive())
+        flush_timer_.start();
+}
+
+void OfflineCache::flush() {
+    flush_timer_.stop();
+    write_pending();
+}
+
+void OfflineCache::write_pending() const {
+    if (pending_.isEmpty())
+        return;
+    if (!open_) {
+        pending_.clear();
+        return;
+    }
+
+    QSqlDatabase db = db_;
+    db.transaction();
+    QSqlQuery query(db);
     query.prepare(QStringLiteral(
         "INSERT INTO device_states (device_id, sensor, value, unit, timestamp, anomaly, plant, "
         "floor) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT (device_id, sensor) DO UPDATE SET "
         "value = excluded.value, unit = excluded.unit, timestamp = excluded.timestamp, "
         "anomaly = excluded.anomaly, plant = excluded.plant, floor = excluded.floor"));
-    query.addBindValue(deviceId);
-    query.addBindValue(sensor);
-    query.addBindValue(value);
-    query.addBindValue(unit);
-    query.addBindValue(timestamp);
-    query.addBindValue(anomaly ? 1 : 0);
-    query.addBindValue(plant);
-    query.addBindValue(floor);
-    query.exec();
+    for (const auto& s : std::as_const(pending_)) {
+        query.addBindValue(s.device_id);
+        query.addBindValue(s.sensor);
+        query.addBindValue(s.value);
+        query.addBindValue(s.unit);
+        query.addBindValue(s.timestamp);
+        query.addBindValue(s.anomaly ? 1 : 0);
+        query.addBindValue(s.plant);
+        query.addBindValue(s.floor);
+        query.exec();
+    }
+    db.commit();
+    pending_.clear();
+}
+
+QString OfflineCache::journalMode() const {
+    if (!open_)
+        return {};
+    QSqlQuery query(db_);
+    query.exec(QStringLiteral("PRAGMA journal_mode"));
+    return query.next() ? query.value(0).toString().toLower() : QString();
 }
 
 QVector<CachedDeviceState> OfflineCache::loadDeviceStates() const {
     QVector<CachedDeviceState> result;
     if (!open_)
         return result;
+    write_pending();
 
     QSqlQuery query(db_);
     query.exec(

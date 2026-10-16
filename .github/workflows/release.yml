@@ -32,10 +32,11 @@ jobs:
             libgrpc++-dev protobuf-compiler-grpc libprotobuf-dev protobuf-compiler \
             libqt6sql6-sqlite \
             qt6-base-dev qt6-declarative-dev qt6-charts-dev \
-            qt6-httpserver-dev qt6-websockets-dev \
+            qt6-httpserver-dev qt6-websockets-dev qt6-quick3d-dev qt6-shadertools-dev \
             qml6-module-qtquick \
             qml6-module-qtquick-controls \
             qml6-module-qtquick-layouts \
+            qml6-module-qtquick-shapes \
             qml6-module-qtquick-templates \
             qml6-module-qtcharts \
             qml6-module-qtquick-window \

@@ -7,7 +7,9 @@ implementation-plan.md
 .env.*
 
 # Docs and data (fetched via scripts, not stored in repo)
-/docs/
+/docs/*
+# README and landing-page media is committed.
+!/docs/media/
 /data/
 /models/
 /build-artifacts/

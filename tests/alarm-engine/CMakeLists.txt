@@ -11,6 +11,7 @@ include(GoogleTest)
 add_executable(alarm_engine_tests
     test_types.cpp
     test_rule_evaluator.cpp
+    test_rule_reload.cpp
     test_alarm_store.cpp
 )
 
