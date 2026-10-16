@@ -1,6 +1,7 @@
 # Local agent docs (not committed)
 AGENTS.md
 implementation-plan.md
+production-roadmap.md
 
 # Environment / secrets
 .env

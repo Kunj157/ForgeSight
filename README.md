@@ -27,18 +27,14 @@ A native Qt Quick dashboard designed for the control room. It defaults to a dark
 
 The shell shows connection state at all times: **connecting / live / stale / offline**, with data age, a freshness meter, queued offline acks, and toasts for connection loss or recovery and for new critical alarms. Reusable QML primitives live in `ui/app/qml/`: `GlowCard` (hover spotlight, glow, border trail), `AnimatedNumber`, `SlidingNumber`, `StatusPill`, `ShimmerText`, `Skeleton`, `SegmentedControl`, `FxButton`, `ToastHost` and `EmptyState`. They are reimplementations of the Motion Primitives effects that need nothing newer than Qt 6.4.
 
-## Status
+## Highlights
 
-**Production-grade MVP complete — [`v1.0.0`](https://github.com/Kunj157/ForgeSight/releases/tag/v1.0.0) released.** All 10 planned phases (repo/CI, simulators, ingestion, alarm engine, REST/WS API, dashboard, history/export, offline mode, packaging/load test, release) are done end-to-end, built test-first per this repo's strict TDD workflow:
-
-- **Live stack**: MQTT-fed simulators → ingestion → PostgreSQL → rule-based alarm engine → REST/WebSocket API → Qt Quick dashboard (plant/floor device tree, alarm ack, historical charts + CSV/PDF export).
-- **Resilient by design**: SQLite-backed offline cache restores last-known state on cold start, queues alarm acks while disconnected, and flushes them on reconnect; a staleness-aware UI indicator distinguishes "no fresh data" from "socket closed."
-- **Secured**: optional API-key auth on every HTTP/WebSocket request, configurable bind address, and TLS-bypass behavior gated behind an explicit opt-in rather than silently ignoring certificate errors.
-- **Tested**: 282 passing tests (`ctest`) across ingestion/alarm-engine/api/ui, plus an AddressSanitizer CI job (zero leaks) and Python simulator tests.
-- **Load-tested**: up to 600 simulated devices (~1,800 msg/s) with sub-second p95 ingestion latency on an 8-core dev laptop — see [Load testing](#load-testing) for the full numbers.
-- **Shipped**: Dockerized backend (single combined image for ingestion/alarm-engine/api), a self-contained Linux AppImage for the desktop app, and a tag-triggered `release.yml` that publishes both to GHCR and GitHub Releases automatically.
-
-See `production-roadmap.md` for the full phase-by-phase history and progress log.
+- **Live stack**: MQTT-fed simulators, ingestion into PostgreSQL, a rule-based alarm engine, a REST/WebSocket API and the Qt Quick dashboard (plant/floor device tree, alarm acknowledge, historical charts with CSV/PDF export).
+- **Resilient**: an SQLite-backed offline cache restores last-known state on cold start, queues alarm acks while disconnected and flushes them on reconnect. The UI distinguishes "no fresh data" from "socket closed".
+- **Secure options**: optional API-key auth on every HTTP/WebSocket request, a configurable bind address, and TLS bypass only behind an explicit opt-in.
+- **Tested**: unit and database integration tests (`ctest`) across ingestion, alarm engine, API and UI, an AddressSanitizer CI job and Python simulator tests.
+- **Load-tested**: up to 600 simulated devices (~1,800 msg/s) with sub-second p95 ingestion latency. See [Load testing](#load-testing).
+- **Packaged**: one Docker image for the backend services, a self-contained Linux AppImage for the desktop app, and a tag-triggered release workflow that publishes both.
 
 ## Prerequisites
 
@@ -131,7 +127,7 @@ FORGESIGHT_API_KEY="$(openssl rand -hex 32)" docker compose up --build   # or om
 
 See [Security](#security) for what `FORGESIGHT_API_KEY` does and why the container stays bound to `0.0.0.0`.
 
-`ingestion`, `alarm-engine`, and `api` all run the *same* built image (`forgesight-backend:local`, from `docker/Dockerfile.backend`) with a different `entrypoint:` per service — only the `ingestion` service declares `build:`, so this is a single image build no matter how compose is invoked. (An earlier version of this file gave each service its own build target sharing a `builder` stage; `docker compose build`'s default parallel mode doesn't dedupe a shared stage across targets, so it raced 3 copies of the heaviest step — installing the Qt toolchain — and was enough concurrent disk/memory pressure to freeze a real dev machine. See #28.)
+`ingestion`, `alarm-engine`, and `api` all run the *same* built image (`forgesight-backend:local`, from `docker/Dockerfile.backend`) with a different `entrypoint:` per service — only the `ingestion` service declares `build:`, so this is a single image build no matter how compose is invoked.
 
 This brings up:
 
@@ -189,7 +185,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
 
 ## Deploy (optional)
 
-`.github/workflows/deploy.yml` is a thin, manual (`workflow_dispatch`-only) template for pushing a release to an SSH-reachable host that already has Docker + Compose installed — this repo doesn't have an actual VPS configured, so running it as-is will fail with a clear error listing which repo secrets to add first:
+`.github/workflows/deploy.yml` is a thin, manual (`workflow_dispatch`-only) template for pushing a release to an SSH-reachable host that already has Docker + Compose installed. Until the following repository secrets are set, it fails with an error listing the missing ones:
 
 | Secret | Purpose |
 |---|---|
@@ -252,6 +248,10 @@ The marketing site at [kunj157.github.io/ForgeSight](https://kunj157.github.io/F
 cd site && pnpm install && pnpm dev
 ```
 
-## Workflow
+## Contributing
 
-See `AGENTS.md` / `implementation-plan.md` (local): issue → `feature/*` branch → PR into `dev`. Never commit to `main`/`dev` directly.
+Work happens on `feature/*` branches with pull requests into `dev`. `dev` is merged into `main` for releases.
+
+## License
+
+[MIT](LICENSE)
