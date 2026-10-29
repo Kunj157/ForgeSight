@@ -44,7 +44,7 @@ bool AlarmStore::create_tables() {
 
     const char* ddl_alarms = "CREATE TABLE IF NOT EXISTS alarms ("
                              "  id BIGSERIAL PRIMARY KEY,"
-                             "  rule_id BIGINT REFERENCES alarm_rules(id),"
+                             "  rule_id BIGINT REFERENCES alarm_rules(id) ON DELETE SET NULL,"
                              "  device_id TEXT NOT NULL,"
                              "  sensor TEXT NOT NULL,"
                              "  value DOUBLE PRECISION NOT NULL,"
@@ -69,6 +69,29 @@ bool AlarmStore::create_tables() {
                       PQerrorMessage(static_cast<PGconn*>(conn_)));
     }
 
+    // CREATE TABLE IF NOT EXISTS leaves an existing alarms table untouched, so
+    // databases created before ON DELETE SET NULL still carry the default NO
+    // ACTION foreign key and reject deleting a rule that has fired. Swap the
+    // constraint in place. Idempotent: it only runs while the delete action is
+    // not already SET NULL ('n'), so a second start is a no-op.
+    const char* ddl_migrate_fk =
+        "DO $$ BEGIN "
+        "IF EXISTS (SELECT 1 FROM pg_constraint "
+        "           WHERE conname = 'alarms_rule_id_fkey' "
+        "             AND conrelid = 'alarms'::regclass AND confdeltype <> 'n') THEN "
+        "  ALTER TABLE alarms DROP CONSTRAINT alarms_rule_id_fkey; "
+        "  ALTER TABLE alarms ADD CONSTRAINT alarms_rule_id_fkey "
+        "    FOREIGN KEY (rule_id) REFERENCES alarm_rules(id) ON DELETE SET NULL; "
+        "END IF; "
+        "END $$";
+    auto* rm = PQexec(static_cast<PGconn*>(conn_), ddl_migrate_fk);
+    bool ok_fk = PQresultStatus(rm) == PGRES_COMMAND_OK;
+    PQclear(rm);
+    if (!ok_fk) {
+        spdlog::error("Failed to migrate alarms.rule_id foreign key: {}",
+                      PQerrorMessage(static_cast<PGconn*>(conn_)));
+    }
+
     const char* ddl_idx_timestamp =
         "CREATE INDEX IF NOT EXISTS idx_alarms_timestamp ON alarms (timestamp)";
     const char* ddl_idx_acknowledged =
@@ -87,7 +110,7 @@ bool AlarmStore::create_tables() {
                       PQerrorMessage(static_cast<PGconn*>(conn_)));
     }
 
-    return ok1 && ok2 && ok3 && ok4;
+    return ok1 && ok2 && ok_fk && ok3 && ok4;
 }
 
 bool AlarmStore::add_rule(const Rule& rule) {
@@ -161,17 +184,52 @@ bool AlarmStore::delete_rule(std::int64_t rule_id) {
     if (!conn_)
         return false;
 
+    auto* c = static_cast<PGconn*>(conn_);
     auto id = std::to_string(rule_id);
     const char* param_values[1] = {id.c_str()};
     int lengths[1] = {static_cast<int>(id.size())};
     int formats[1] = {0};
 
-    auto* res = PQexecParams(static_cast<PGconn*>(conn_), "DELETE FROM alarm_rules WHERE id=$1", 1,
-                             nullptr, param_values, lengths, formats, 0);
+    // Databases created before the ON DELETE SET NULL migration (and any that
+    // have not run create_tables yet) still reject a plain DELETE once the rule
+    // has fired. Detaching the history explicitly works under either schema.
+    auto* begin = PQexec(c, "BEGIN");
+    bool began = PQresultStatus(begin) == PGRES_COMMAND_OK;
+    PQclear(begin);
+    if (!began)
+        return false;
 
+    auto rollback = [&]() {
+        auto* rb = PQexec(c, "ROLLBACK");
+        PQclear(rb);
+    };
+
+    auto* upd = PQexecParams(c, "UPDATE alarms SET rule_id = NULL WHERE rule_id = $1", 1, nullptr,
+                             param_values, lengths, formats, 0);
+    bool upd_ok = PQresultStatus(upd) == PGRES_COMMAND_OK;
+    PQclear(upd);
+    if (!upd_ok) {
+        rollback();
+        return false;
+    }
+
+    auto* res = PQexecParams(c, "DELETE FROM alarm_rules WHERE id=$1", 1, nullptr, param_values,
+                             lengths, formats, 0);
     bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
     PQclear(res);
-    return ok;
+    if (!ok) {
+        rollback();
+        return false;
+    }
+
+    auto* commit = PQexec(c, "COMMIT");
+    bool committed = PQresultStatus(commit) == PGRES_COMMAND_OK;
+    PQclear(commit);
+    if (!committed) {
+        rollback();
+        return false;
+    }
+    return true;
 }
 
 std::optional<std::vector<Rule>> AlarmStore::try_load_rules() const {
@@ -269,7 +327,8 @@ std::vector<Alarm> AlarmStore::load_alarms(bool unacknowledged_only) const {
     for (int i = 0; i < rows; ++i) {
         Alarm a;
         a.id = std::stoll(PQgetvalue(res, i, 0));
-        a.rule_id = std::stoll(PQgetvalue(res, i, 1));
+        // rule_id is nulled when its rule is deleted so the history row can stay.
+        a.rule_id = PQgetisnull(res, i, 1) ? 0 : std::stoll(PQgetvalue(res, i, 1));
         a.device_id = PQgetvalue(res, i, 2);
         a.sensor = PQgetvalue(res, i, 3);
         a.value = std::stod(PQgetvalue(res, i, 4));
