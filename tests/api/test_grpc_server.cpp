@@ -233,7 +233,7 @@ TEST_F(GrpcServerTest, ConcurrentRpcsOnSharedConnection) {
     ASSERT_TRUE(server.start("127.0.0.1:0"));
 
     auto channel = grpc::CreateChannel("127.0.0.1:" + std::to_string(server.port()),
-                                        grpc::InsecureChannelCredentials());
+                                       grpc::InsecureChannelCredentials());
 
     constexpr int kThreads = 8;
     constexpr int kIters = 20;
