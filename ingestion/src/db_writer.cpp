@@ -50,7 +50,9 @@ bool DbWriter::ensure_table() {
     //  - (device_id, sensor, timestamp DESC) → "latest reading per device+sensor"
     //    DISTINCT ON (dashboard bootstrap); the DESC order lets it use an index
     //    scan instead of a full-table Seq Scan + on-disk Sort.
-    //  - (timestamp)                          → the WS poll's `WHERE timestamp >= $1`.
+    //  - (timestamp)                          → history ranges and the API poll's
+    //    startup catch-up (`WHERE timestamp >= $1`). The steady-state poll
+    //    follows readings.id, which is the primary key.
     const char* index_ddls[] = {
         "CREATE INDEX IF NOT EXISTS idx_readings_device_sensor_timestamp "
         "ON readings (device_id, sensor, timestamp)",

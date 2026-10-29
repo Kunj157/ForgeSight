@@ -5,7 +5,9 @@
 #include <QTimer>
 #include <QWebSocket>
 #include <QWebSocketServer>
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <mqtt/async_client.h>
@@ -59,8 +61,10 @@ class ApiServer : public QObject {
     DeviceService deviceService_;
     RuleService ruleService_;
     WebSocketBroadcaster broadcaster_;
-    std::string last_readings_since_;
-    std::string last_alarms_since_;
+    // Unset until the catch-up query succeeds. Id 0 is a real cursor (empty
+    // table); it must not be used as the "not ready" sentinel.
+    std::optional<std::int64_t> last_reading_id_;
+    std::optional<std::int64_t> last_alarm_id_;
 };
 
 } // namespace api

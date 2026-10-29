@@ -132,33 +132,102 @@ bool RuleService::delete_rule(std::int64_t id) {
     if (!conn_)
         return false;
 
+    auto* c = static_cast<PGconn*>(conn_);
     auto id_str = std::to_string(id);
     const char* params[1] = {id_str.c_str()};
     int lengths[1] = {static_cast<int>(id_str.size())};
     int formats[1] = {0};
 
-    auto* res = PQexecParams(static_cast<PGconn*>(conn_), "DELETE FROM alarm_rules WHERE id = $1",
-                             1, nullptr, params, lengths, formats, 0);
+    // alarms.rule_id references alarm_rules with the default NO ACTION, so a
+    // plain DELETE is rejected once the rule has fired. The Rules tab then
+    // cannot remove it. Detach the history first (the column is nullable)
+    // and keep the alarm rows.
+    auto* begin = PQexec(c, "BEGIN");
+    bool began = PQresultStatus(begin) == PGRES_COMMAND_OK;
+    PQclear(begin);
+    if (!began)
+        return false;
 
+    auto rollback = [&]() {
+        auto* rb = PQexec(c, "ROLLBACK");
+        PQclear(rb);
+    };
+
+    auto* upd = PQexecParams(c, "UPDATE alarms SET rule_id = NULL WHERE rule_id = $1", 1, nullptr,
+                             params, lengths, formats, 0);
+    bool upd_ok = PQresultStatus(upd) == PGRES_COMMAND_OK;
+    PQclear(upd);
+    if (!upd_ok) {
+        rollback();
+        return false;
+    }
+
+    auto* res = PQexecParams(c, "DELETE FROM alarm_rules WHERE id = $1", 1, nullptr, params,
+                             lengths, formats, 0);
     bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
     PQclear(res);
-    return ok;
+    if (!ok) {
+        rollback();
+        return false;
+    }
+
+    auto* commit = PQexec(c, "COMMIT");
+    bool committed = PQresultStatus(commit) == PGRES_COMMAND_OK;
+    PQclear(commit);
+    if (!committed) {
+        rollback();
+        return false;
+    }
+    return true;
 }
 
-std::vector<alarm_engine::Alarm> RuleService::get_alarms_since(const std::string& since) const {
+std::optional<std::int64_t> RuleService::alarm_poll_cursor(const std::string& catchup_since) const {
+    if (!conn_)
+        return std::nullopt;
 
+    const char* params[1] = {catchup_since.c_str()};
+    int lengths[1] = {static_cast<int>(catchup_since.size())};
+    int formats[1] = {0};
+
+    auto* res =
+        PQexecParams(static_cast<PGconn*>(conn_),
+                     "SELECT COALESCE("
+                     "  (SELECT MIN(id) - 1 FROM alarms WHERE timestamp >= $1::timestamptz),"
+                     "  (SELECT COALESCE(MAX(id), 0) FROM alarms)"
+                     ")",
+                     1, nullptr, params, lengths, formats, 0);
+
+    if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0 && !PQgetisnull(res, 0, 0)) {
+        const auto cursor = std::stoll(PQgetvalue(res, 0, 0));
+        PQclear(res);
+        return cursor;
+    }
+    PQclear(res);
+
+    auto* max_res = PQexec(static_cast<PGconn*>(conn_), "SELECT COALESCE(MAX(id), 0) FROM alarms");
+    std::optional<std::int64_t> cursor;
+    if (PQresultStatus(max_res) == PGRES_TUPLES_OK && PQntuples(max_res) > 0 &&
+        !PQgetisnull(max_res, 0, 0)) {
+        cursor = std::stoll(PQgetvalue(max_res, 0, 0));
+    }
+    PQclear(max_res);
+    return cursor;
+}
+
+std::vector<alarm_engine::Alarm> RuleService::alarms_after(std::int64_t after_id) const {
     std::vector<alarm_engine::Alarm> alarms;
     if (!conn_)
         return alarms;
 
-    const char* params[1] = {since.c_str()};
-    int lengths[1] = {static_cast<int>(since.size())};
+    const std::string id_str = std::to_string(after_id);
+    const char* params[1] = {id_str.c_str()};
+    int lengths[1] = {static_cast<int>(id_str.size())};
     int formats[1] = {0};
 
     auto* res = PQexecParams(static_cast<PGconn*>(conn_),
                              "SELECT id, rule_id, device_id, sensor, value, severity, message, "
                              "timestamp::text, acknowledged FROM alarms "
-                             "WHERE timestamp > $1 ORDER BY timestamp",
+                             "WHERE id > $1::bigint ORDER BY id",
                              1, nullptr, params, lengths, formats, 0);
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
@@ -170,7 +239,8 @@ std::vector<alarm_engine::Alarm> RuleService::get_alarms_since(const std::string
     for (int i = 0; i < rows; ++i) {
         alarm_engine::Alarm a;
         a.id = std::stoll(PQgetvalue(res, i, 0));
-        a.rule_id = std::stoll(PQgetvalue(res, i, 1));
+        // rule_id is nulled when its rule is deleted so the history row can stay.
+        a.rule_id = PQgetisnull(res, i, 1) ? 0 : std::stoll(PQgetvalue(res, i, 1));
         a.device_id = PQgetvalue(res, i, 2);
         a.sensor = PQgetvalue(res, i, 3);
         a.value = std::stod(PQgetvalue(res, i, 4));
@@ -209,7 +279,8 @@ std::vector<alarm_engine::Alarm> RuleService::list_alarms(bool unacknowledged_on
     for (int i = 0; i < rows; ++i) {
         alarm_engine::Alarm a;
         a.id = std::stoll(PQgetvalue(res, i, 0));
-        a.rule_id = std::stoll(PQgetvalue(res, i, 1));
+        // rule_id is nulled when its rule is deleted so the history row can stay.
+        a.rule_id = PQgetisnull(res, i, 1) ? 0 : std::stoll(PQgetvalue(res, i, 1));
         a.device_id = PQgetvalue(res, i, 2);
         a.sensor = PQgetvalue(res, i, 3);
         a.value = std::stod(PQgetvalue(res, i, 4));
