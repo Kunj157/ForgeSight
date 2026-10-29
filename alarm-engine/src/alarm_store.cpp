@@ -44,7 +44,7 @@ bool AlarmStore::create_tables() {
 
     const char* ddl_alarms = "CREATE TABLE IF NOT EXISTS alarms ("
                              "  id BIGSERIAL PRIMARY KEY,"
-                             "  rule_id BIGINT REFERENCES alarm_rules(id),"
+                             "  rule_id BIGINT REFERENCES alarm_rules(id) ON DELETE SET NULL,"
                              "  device_id TEXT NOT NULL,"
                              "  sensor TEXT NOT NULL,"
                              "  value DOUBLE PRECISION NOT NULL,"
@@ -69,6 +69,29 @@ bool AlarmStore::create_tables() {
                       PQerrorMessage(static_cast<PGconn*>(conn_)));
     }
 
+    // CREATE TABLE IF NOT EXISTS leaves an existing alarms table untouched, so
+    // databases created before ON DELETE SET NULL still carry the default NO
+    // ACTION foreign key and reject deleting a rule that has fired. Swap the
+    // constraint in place. Idempotent: it only runs while the delete action is
+    // not already SET NULL ('n'), so a second start is a no-op.
+    const char* ddl_migrate_fk =
+        "DO $$ BEGIN "
+        "IF EXISTS (SELECT 1 FROM pg_constraint "
+        "           WHERE conname = 'alarms_rule_id_fkey' "
+        "             AND conrelid = 'alarms'::regclass AND confdeltype <> 'n') THEN "
+        "  ALTER TABLE alarms DROP CONSTRAINT alarms_rule_id_fkey; "
+        "  ALTER TABLE alarms ADD CONSTRAINT alarms_rule_id_fkey "
+        "    FOREIGN KEY (rule_id) REFERENCES alarm_rules(id) ON DELETE SET NULL; "
+        "END IF; "
+        "END $$";
+    auto* rm = PQexec(static_cast<PGconn*>(conn_), ddl_migrate_fk);
+    bool ok_fk = PQresultStatus(rm) == PGRES_COMMAND_OK;
+    PQclear(rm);
+    if (!ok_fk) {
+        spdlog::error("Failed to migrate alarms.rule_id foreign key: {}",
+                      PQerrorMessage(static_cast<PGconn*>(conn_)));
+    }
+
     const char* ddl_idx_timestamp =
         "CREATE INDEX IF NOT EXISTS idx_alarms_timestamp ON alarms (timestamp)";
     const char* ddl_idx_acknowledged =
@@ -87,7 +110,7 @@ bool AlarmStore::create_tables() {
                       PQerrorMessage(static_cast<PGconn*>(conn_)));
     }
 
-    return ok1 && ok2 && ok3 && ok4;
+    return ok1 && ok2 && ok_fk && ok3 && ok4;
 }
 
 bool AlarmStore::add_rule(const Rule& rule) {
@@ -167,9 +190,9 @@ bool AlarmStore::delete_rule(std::int64_t rule_id) {
     int lengths[1] = {static_cast<int>(id.size())};
     int formats[1] = {0};
 
-    // alarms.rule_id references alarm_rules with the default NO ACTION, so a
-    // plain DELETE is rejected once the rule has fired. Detach the history
-    // first (the column is nullable) and keep the alarm rows.
+    // Databases created before the ON DELETE SET NULL migration (and any that
+    // have not run create_tables yet) still reject a plain DELETE once the rule
+    // has fired. Detaching the history explicitly works under either schema.
     auto* begin = PQexec(c, "BEGIN");
     bool began = PQresultStatus(begin) == PGRES_COMMAND_OK;
     PQclear(begin);
