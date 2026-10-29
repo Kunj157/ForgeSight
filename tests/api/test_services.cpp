@@ -39,6 +39,25 @@ void seed_reading(void* conn, const std::string& device, const std::string& sens
     PQclear(res);
 }
 
+std::int64_t insert_reading_id(void* conn, const std::string& device, const std::string& sensor,
+                               double value, const std::string& ts) {
+    std::string value_str = std::to_string(value);
+    const char* params[4] = {device.c_str(), sensor.c_str(), value_str.c_str(), ts.c_str()};
+    int lengths[4] = {static_cast<int>(device.size()), static_cast<int>(sensor.size()),
+                      static_cast<int>(value_str.size()), static_cast<int>(ts.size())};
+    int formats[4] = {0, 0, 0, 0};
+    auto* res =
+        PQexecParams(static_cast<PGconn*>(conn),
+                     "INSERT INTO readings (device_id, sensor, value, unit, timestamp, anomaly) "
+                     "VALUES ($1, $2, $3, '°C', $4, false) RETURNING id",
+                     4, nullptr, params, lengths, formats, 0);
+    std::int64_t id = -1;
+    if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0)
+        id = std::stoll(PQgetvalue(res, 0, 0));
+    PQclear(res);
+    return id;
+}
+
 void exec_and_clear(void* conn, const char* sql) {
     auto* res = PQexec(static_cast<PGconn*>(conn), sql);
     PQclear(res);
@@ -142,6 +161,75 @@ TEST_F(DeviceServiceTest, NullConnReturnsEmpty) {
     api::DeviceService svc(nullptr);
     EXPECT_TRUE(svc.list_devices().empty());
     EXPECT_TRUE(svc.get_history("a", "b", "c").empty());
+    EXPECT_TRUE(svc.readings_after(0).empty());
+    EXPECT_FALSE(svc.reading_poll_cursor("1970-01-01T00:00:00Z").has_value());
+}
+
+// One simulator sweep stamps every sensor with the same timestamp, and
+// ingestion can commit that sweep in two batches. A timestamp cursor either
+// replays the first batch on every poll or never sees the second. The id
+// cursor has to do neither.
+TEST_F(DeviceServiceTest, ReadingsAfterIdKeepsLaterRowWithSameTimestamp) {
+    const std::string ts = "2031-04-01T00:00:00Z";
+    const auto first = insert_reading_id(conn, "svc-test", "temperature", 10.0, ts);
+    const auto second = insert_reading_id(conn, "svc-test", "pressure", 20.0, ts);
+    ASSERT_GT(first, 0);
+    ASSERT_GT(second, first);
+
+    api::DeviceService svc(conn);
+
+    auto after_first = svc.readings_after(first);
+    int saw_second = 0;
+    for (const auto& row : after_first) {
+        EXPECT_GT(row.id, first);
+        if (row.id == second) {
+            ++saw_second;
+            EXPECT_EQ(row.reading.sensor, "pressure");
+            EXPECT_EQ(row.reading.timestamp.substr(0, 10), "2031-04-01");
+        }
+        EXPECT_NE(row.id, first);
+    }
+    EXPECT_EQ(saw_second, 1);
+
+    auto after_second = svc.readings_after(second);
+    for (const auto& row : after_second) {
+        EXPECT_NE(row.reading.device_id, "svc-test");
+    }
+}
+
+TEST_F(DeviceServiceTest, ReadingPollCursorSkipsRowsBeforeCatchupWindow) {
+    auto* pre = PQexec(static_cast<PGconn*>(conn),
+                       "SELECT COUNT(*) FROM readings WHERE timestamp >= '2030-03-01T00:00:00Z'");
+    ASSERT_EQ(PQresultStatus(pre), PGRES_TUPLES_OK);
+    const bool window_was_empty = std::string(PQgetvalue(pre, 0, 0)) == "0";
+    PQclear(pre);
+    if (!window_was_empty) {
+        GTEST_SKIP() << "catch-up window already holds rows; cursor would not be ours";
+    }
+
+    const auto old_id =
+        insert_reading_id(conn, "svc-test", "temperature", 1.0, "2030-01-01T00:00:00Z");
+    const auto new_id =
+        insert_reading_id(conn, "svc-test", "temperature", 2.0, "2030-06-01T00:00:00Z");
+    ASSERT_GT(old_id, 0);
+    ASSERT_GT(new_id, old_id);
+
+    api::DeviceService svc(conn);
+    const auto cursor = svc.reading_poll_cursor("2030-03-01T00:00:00Z");
+    ASSERT_TRUE(cursor.has_value());
+    EXPECT_GE(*cursor, old_id);
+    EXPECT_LT(*cursor, new_id);
+
+    bool saw_old = false;
+    bool saw_new = false;
+    for (const auto& row : svc.readings_after(*cursor)) {
+        if (row.id == old_id)
+            saw_old = true;
+        if (row.id == new_id)
+            saw_new = true;
+    }
+    EXPECT_FALSE(saw_old);
+    EXPECT_TRUE(saw_new);
 }
 
 // A wide history window at 1 Hz is tens of thousands of rows; returning them
@@ -374,6 +462,7 @@ class RuleServiceTest : public ::testing::Test {
 
     void TearDown() override {
         if (conn) {
+            exec_and_clear(conn, "DELETE FROM alarms WHERE device_id = 'svc-test'");
             exec_and_clear(conn, "DELETE FROM alarm_rules WHERE device_id = 'svc-test'");
             PQfinish(static_cast<PGconn*>(conn));
         }
@@ -438,4 +527,65 @@ TEST_F(RuleServiceTest, NullConnReturnsEmpty) {
     EXPECT_TRUE(svc.list_rules().empty());
     EXPECT_FALSE(svc.get_rule(1).has_value());
     EXPECT_EQ(svc.create_rule({}), -1);
+    EXPECT_TRUE(svc.alarms_after(0).empty());
+    EXPECT_FALSE(svc.alarm_poll_cursor("1970-01-01T00:00:00Z").has_value());
+}
+
+TEST_F(RuleServiceTest, AlarmsAfterIdKeepsLaterAlarmWithSameTimestamp) {
+    exec_and_clear(conn, "CREATE TABLE IF NOT EXISTS alarms ("
+                         "  id BIGSERIAL PRIMARY KEY,"
+                         "  rule_id BIGINT REFERENCES alarm_rules(id),"
+                         "  device_id TEXT NOT NULL,"
+                         "  sensor TEXT NOT NULL,"
+                         "  value DOUBLE PRECISION NOT NULL,"
+                         "  severity TEXT NOT NULL DEFAULT 'warning',"
+                         "  message TEXT NOT NULL DEFAULT '',"
+                         "  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+                         "  acknowledged BOOLEAN NOT NULL DEFAULT FALSE)");
+
+    api::RuleService svc(conn);
+    alarm_engine::Rule rule;
+    rule.device_id = "svc-test";
+    rule.sensor = "temperature";
+    rule.condition = alarm_engine::Condition::GreaterThan;
+    rule.threshold = 80.0;
+    rule.severity = alarm_engine::Severity::Warning;
+    const auto rule_id = svc.create_rule(rule);
+    ASSERT_GT(rule_id, 0);
+
+    const auto insert_alarm = [&](const std::string& sensor) {
+        const std::string rule_id_str = std::to_string(rule_id);
+        const char* params[3] = {rule_id_str.c_str(), sensor.c_str(), "2031-04-01T00:00:00Z"};
+        int lengths[3] = {static_cast<int>(rule_id_str.size()), static_cast<int>(sensor.size()),
+                          static_cast<int>(std::string("2031-04-01T00:00:00Z").size())};
+        int formats[3] = {0, 0, 0};
+        auto* res = PQexecParams(static_cast<PGconn*>(conn),
+                                 "INSERT INTO alarms (rule_id, device_id, sensor, value, severity, "
+                                 "message, timestamp) "
+                                 "VALUES ($1, 'svc-test', $2, 95, 'warning', 'hot', $3) "
+                                 "RETURNING id",
+                                 3, nullptr, params, lengths, formats, 0);
+        std::int64_t id = -1;
+        if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0)
+            id = std::stoll(PQgetvalue(res, 0, 0));
+        PQclear(res);
+        return id;
+    };
+
+    const auto first = insert_alarm("temperature");
+    const auto second = insert_alarm("pressure");
+    ASSERT_GT(first, 0);
+    ASSERT_GT(second, first);
+
+    int saw_second = 0;
+    for (const auto& alarm : svc.alarms_after(first)) {
+        EXPECT_GT(alarm.id, first);
+        if (alarm.id == second)
+            ++saw_second;
+    }
+    EXPECT_EQ(saw_second, 1);
+
+    for (const auto& alarm : svc.alarms_after(second)) {
+        EXPECT_NE(alarm.device_id, "svc-test");
+    }
 }

@@ -114,8 +114,8 @@ TEST_F(DbWriterTest, CreatesLatestPerDeviceIndex) {
 }
 
 TEST_F(DbWriterTest, CreatesTimestampIndex) {
-    // A leading-timestamp index lets the WS poll's `WHERE timestamp >= $1`
-    // query use an index instead of scanning the whole table every 2s.
+    // A leading-timestamp index serves history ranges and the API poll's
+    // startup catch-up (`WHERE timestamp >= $1`).
     DbConfig cfg{conn_str};
     DbWriter w(cfg);
     ASSERT_TRUE(w.is_connected());
