@@ -150,6 +150,111 @@ TEST_F(AlarmStoreTest, DeleteRule) {
     EXPECT_LT(after.size(), rules.size());
 }
 
+TEST_F(AlarmStoreTest, DeleteRuleWithFiredAlarmKeepsHistory) {
+    // A rule that has already produced an alarm cannot be removed by a plain
+    // DELETE: alarms.rule_id REFERENCES alarm_rules. The Rules tab hits that
+    // path. History must stay readable, with a null rule id, after the delete.
+    AlarmStoreConfig cfg{conn_str};
+    AlarmStore store(cfg);
+    ASSERT_TRUE(store.is_connected());
+
+    Rule r = make_rule();
+    r.device_id = "delete-fk-test";
+    ASSERT_TRUE(store.add_rule(r));
+
+    std::int64_t rule_id = -1;
+    for (const auto& rule : store.load_rules()) {
+        if (rule.device_id == "delete-fk-test")
+            rule_id = rule.id;
+    }
+    ASSERT_GT(rule_id, 0);
+
+    Alarm a = make_alarm();
+    a.rule_id = rule_id;
+    a.device_id = "delete-fk-test";
+    ASSERT_TRUE(store.write_alarm(a));
+
+    EXPECT_TRUE(store.delete_rule(rule_id));
+
+    bool rule_gone = true;
+    for (const auto& rule : store.load_rules()) {
+        if (rule.id == rule_id)
+            rule_gone = false;
+    }
+    EXPECT_TRUE(rule_gone);
+
+    const auto alarms = store.load_alarms();
+    const Alarm* kept = nullptr;
+    for (const auto& alarm : alarms) {
+        if (alarm.device_id == "delete-fk-test")
+            kept = &alarm;
+    }
+    ASSERT_NE(kept, nullptr);
+    EXPECT_EQ(kept->rule_id, 0);
+    EXPECT_EQ(kept->message, a.message);
+
+    auto* conn = PQconnectdb(conn_str.c_str());
+    auto* res = PQexec(conn, "DELETE FROM alarms WHERE device_id = 'delete-fk-test'");
+    PQclear(res);
+    PQfinish(conn);
+}
+
+TEST_F(AlarmStoreTest, CreateTablesMigratesLegacyForeignKey) {
+    // A database created before ON DELETE SET NULL keeps the default NO ACTION
+    // constraint. create_tables must upgrade it, and a second run must be a no-op.
+    auto* conn = PQconnectdb(conn_str.c_str());
+    ASSERT_EQ(PQstatus(conn), CONNECTION_OK);
+    auto exec = [&](const char* sql) {
+        auto* res = PQexec(conn, sql);
+        const bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
+        PQclear(res);
+        return ok;
+    };
+    ASSERT_TRUE(exec("ALTER TABLE alarms DROP CONSTRAINT IF EXISTS alarms_rule_id_fkey"));
+    ASSERT_TRUE(exec("ALTER TABLE alarms ADD CONSTRAINT alarms_rule_id_fkey "
+                     "FOREIGN KEY (rule_id) REFERENCES alarm_rules(id)"));
+
+    auto delete_action = [&]() {
+        auto* res = PQexec(conn, "SELECT confdeltype::text FROM pg_constraint "
+                                 "WHERE conname = 'alarms_rule_id_fkey' "
+                                 "AND conrelid = 'alarms'::regclass");
+        std::string v;
+        if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0)
+            v = PQgetvalue(res, 0, 0);
+        PQclear(res);
+        return v;
+    };
+    ASSERT_EQ(delete_action(), "a"); // NO ACTION
+
+    AlarmStoreConfig cfg{conn_str};
+    AlarmStore store(cfg);
+    ASSERT_TRUE(store.is_connected());
+    EXPECT_TRUE(store.create_tables());
+    EXPECT_EQ(delete_action(), "n"); // SET NULL
+    EXPECT_TRUE(store.create_tables());
+    EXPECT_EQ(delete_action(), "n");
+
+    // A raw DELETE of a fired rule now succeeds and nulls the alarm's rule_id.
+    Rule r = make_rule();
+    r.device_id = "migrate-fk-test";
+    ASSERT_TRUE(store.add_rule(r));
+    std::int64_t rule_id = -1;
+    for (const auto& rule : store.load_rules()) {
+        if (rule.device_id == "migrate-fk-test")
+            rule_id = rule.id;
+    }
+    ASSERT_GT(rule_id, 0);
+    Alarm a = make_alarm();
+    a.rule_id = rule_id;
+    a.device_id = "migrate-fk-test";
+    ASSERT_TRUE(store.write_alarm(a));
+
+    const std::string del = "DELETE FROM alarm_rules WHERE id = " + std::to_string(rule_id);
+    EXPECT_TRUE(exec(del.c_str()));
+    EXPECT_TRUE(exec("DELETE FROM alarms WHERE device_id = 'migrate-fk-test'"));
+    PQfinish(conn);
+}
+
 TEST_F(AlarmStoreTest, WriteAndLoadAlarm) {
     AlarmStoreConfig cfg{conn_str};
     AlarmStore store(cfg);
