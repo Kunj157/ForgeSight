@@ -181,6 +181,89 @@ Canvas {
             ctx.stroke()
             break
 
+        case "sun":
+            circle(cx, cy, s * 0.16, false)
+            for (var k = 0; k < 8; k++) {
+                var a = k * Math.PI / 4
+                line(cx + Math.cos(a) * s * 0.27, cy + Math.sin(a) * s * 0.27,
+                     cx + Math.cos(a) * s * 0.38, cy + Math.sin(a) * s * 0.38)
+            }
+            break
+
+        case "moon":
+            ctx.beginPath()
+            ctx.arc(cx, cy, s * 0.32, Math.PI * 0.35, Math.PI * 1.65)
+            ctx.arc(cx + s * 0.16, cy - s * 0.04, s * 0.26, Math.PI * 1.45, Math.PI * 0.55, true)
+            ctx.closePath()
+            ctx.stroke()
+            break
+
+        case "cube": // 3D view
+            ctx.beginPath()
+            ctx.moveTo(cx, p)
+            ctx.lineTo(width - p, cy - s * 0.16)
+            ctx.lineTo(width - p, cy + s * 0.20)
+            ctx.lineTo(cx, height - p)
+            ctx.lineTo(p, cy + s * 0.20)
+            ctx.lineTo(p, cy - s * 0.16)
+            ctx.closePath()
+            ctx.stroke()
+            ctx.beginPath()
+            ctx.moveTo(p, cy - s * 0.16)
+            ctx.lineTo(cx, cy + s * 0.02)
+            ctx.lineTo(width - p, cy - s * 0.16)
+            ctx.moveTo(cx, cy + s * 0.02)
+            ctx.lineTo(cx, height - p)
+            ctx.stroke()
+            break
+
+        case "plus":
+            line(cx, p, cx, height - p)
+            line(p, cy, width - p, cy)
+            break
+
+        case "edit":
+            ctx.beginPath()
+            ctx.moveTo(p, height - p)
+            ctx.lineTo(p + s * 0.06, height - p - s * 0.2)
+            ctx.lineTo(width - p - s * 0.14, p)
+            ctx.lineTo(width - p, p + s * 0.14)
+            ctx.lineTo(p + s * 0.2, height - p - s * 0.06)
+            ctx.closePath()
+            ctx.stroke()
+            break
+
+        case "refresh":
+            ctx.beginPath()
+            ctx.arc(cx, cy, s * 0.30, Math.PI * 0.15, Math.PI * 1.75)
+            ctx.stroke()
+            ctx.beginPath()
+            ctx.moveTo(cx + s * 0.30, cy - s * 0.30)
+            ctx.lineTo(cx + s * 0.27, cy - s * 0.07)
+            ctx.lineTo(cx + s * 0.06, cy - s * 0.12)
+            ctx.stroke()
+            break
+
+        case "alert":
+            ctx.beginPath()
+            ctx.moveTo(cx, p)
+            ctx.lineTo(width - p, height - p)
+            ctx.lineTo(p, height - p)
+            ctx.closePath()
+            ctx.stroke()
+            line(cx, cy - s * 0.08, cx, cy + s * 0.12)
+            circle(cx, cy + s * 0.24, s * 0.03, true)
+            break
+
+        case "wifi":
+            for (var w = 0; w < 3; w++) {
+                ctx.beginPath()
+                ctx.arc(cx, cy + s * 0.22, s * (0.12 + w * 0.13), Math.PI * 1.22, Math.PI * 1.78)
+                ctx.stroke()
+            }
+            circle(cx, cy + s * 0.22, s * 0.035, true)
+            break
+
         default:
             circle(cx, cy, s * 0.28, false)
         }

@@ -1,13 +1,16 @@
 # Local agent docs (not committed)
 AGENTS.md
 implementation-plan.md
+production-roadmap.md
 
 # Environment / secrets
 .env
 .env.*
 
 # Docs and data (fetched via scripts, not stored in repo)
-/docs/
+/docs/*
+# README and landing-page media is committed.
+!/docs/media/
 /data/
 /models/
 /build-artifacts/
