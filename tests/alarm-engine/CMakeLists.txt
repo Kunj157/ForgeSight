@@ -13,6 +13,7 @@ add_executable(alarm_engine_tests
     test_rule_evaluator.cpp
     test_rule_reload.cpp
     test_alarm_store.cpp
+    test_reading_cursor.cpp
 )
 
 target_link_libraries(alarm_engine_tests PRIVATE
