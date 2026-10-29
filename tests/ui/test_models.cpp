@@ -415,3 +415,21 @@ TEST_F(HistoryModelTest, OutOfRangeIndexReturnsInvalid) {
     EXPECT_TRUE(model.data(model.index(0), Qt::DisplayRole).isNull());
     EXPECT_TRUE(model.data(model.index(-1), Qt::DisplayRole).isNull());
 }
+
+TEST_F(AlarmModelTest, CountMatchingFiltersBySeverityAndAckState) {
+    ui::AlarmModel model;
+    model.add_alarm(1, "pump-001", "temperature", 90.0, "critical", "m", "t");
+    model.add_alarm(2, "pump-002", "pressure", 6.0, "critical", "m", "t", true);
+    model.add_alarm(3, "press-003", "vibration", 4.0, "warning", "m", "t");
+    model.add_alarm(4, "oven-004", "temperature", 70.0, "info", "m", "t");
+
+    EXPECT_EQ(model.count_matching("critical", false), 2);
+    EXPECT_EQ(model.count_matching("critical", true), 1);
+    EXPECT_EQ(model.count_matching("warning", true), 1);
+    EXPECT_EQ(model.count_matching("", false), 4);
+    EXPECT_EQ(model.count_matching("", true), 3);
+    EXPECT_EQ(model.count_matching("unknown", false), 0);
+
+    model.acknowledge(1);
+    EXPECT_EQ(model.count_matching("critical", true), 0);
+}

@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
-import "Theme.js" as Theme
 
 Window {
     id: root
@@ -27,8 +26,30 @@ Window {
     readonly property bool offline: !wsClient.connected || stale
     readonly property int staleThresholdMs: 10000
     property string lastUpdatedText: "No data yet"
+    property real freshness: 0
+    property bool everConnected: false
+
+    // connecting | live | stale | offline — drives the header pill, the
+    // sidebar connection card and the reconnect activity line.
+    readonly property string linkState: !wsClient.connected
+                                        ? (everConnected ? "offline" : "connecting")
+                                        : stale ? "stale"
+                                        : lastMessageAtMs === 0 ? "connecting" : "live"
+
+    readonly property var pages: [
+        { label: "Devices", icon: "grid", subtitle: "Live sensor readings across the plant" },
+        { label: "Alarms", icon: "bell", subtitle: "Active and acknowledged alarm events" },
+        { label: "History", icon: "chart", subtitle: "Historical trends and export" },
+        { label: "Rules", icon: "gauge", subtitle: "Create and manage alarm thresholds" },
+    ]
 
     function markFresh() { lastMessageAtMs = Date.now() }
+    function toast(title, message, kind) { toastHost.show(title, message, kind) }
+
+    Component.onCompleted: {
+        Theme.dark = displayOptions.theme !== "light"
+        Theme.reducedMotion = displayOptions.reducedMotion
+    }
 
     Timer {
         interval: 1000
@@ -40,9 +61,12 @@ Window {
 
             if (root.lastMessageAtMs === 0) {
                 root.lastUpdatedText = "No data yet"
+                root.freshness = 0
                 return
             }
-            var secs = Math.round((Date.now() - root.lastMessageAtMs) / 1000)
+            var age = Date.now() - root.lastMessageAtMs
+            root.freshness = Math.max(0, 1 - age / root.staleThresholdMs)
+            var secs = Math.round(age / 1000)
             if (secs < 2)
                 root.lastUpdatedText = "Updated just now"
             else if (secs < 60)
@@ -55,7 +79,10 @@ Window {
     Connections {
         target: alarmModel
         function onAlarmAdded() { alarmCount = alarmModel.unacknowledgedCount }
-        function onAlarmAcknowledged() { alarmCount = alarmModel.unacknowledgedCount }
+        function onAlarmAcknowledged() {
+            alarmCount = alarmModel.unacknowledgedCount
+            root.toast("Alarm acknowledged", alarmCount + " still unacknowledged", "ok")
+        }
     }
 
     Connections {
@@ -76,12 +103,20 @@ Window {
                 !!obj.acknowledged
             )
             root.markFresh()
+            if (obj.severity === "critical" && !obj.acknowledged)
+                root.toast("Critical alarm", obj.device_id + " · " + obj.sensor, "critical")
         }
         function onConnectedChanged() {
-            if (wsClient.connected)
+            if (wsClient.connected) {
                 statusHint = ""
-            else
+                if (root.everConnected)
+                    root.toast("Reconnected", "Live data resumed", "ok")
+                root.everConnected = true
+            } else {
                 statusHint = "Disconnected — run scripts/dev-up.sh"
+                if (root.everConnected)
+                    root.toast("Connection lost", "Showing cached values — retrying", "warning")
+            }
         }
     }
 
@@ -93,19 +128,31 @@ Window {
         }
     }
 
-    // Ambient glow in the top-left corner — the kind of soft color wash
-    // Linear/Vercel dashboards use to keep a dark UI from feeling flat.
+    // Backdrop: an ambient accent wash in the top-left plus a faint dot grid
+    // that fades out toward the bottom — keeps a dark control-room UI from
+    // reading flat. Repainted only on resize or theme change.
     Canvas {
+        id: backdrop
         anchors.fill: parent
         z: -1
+        property bool dark: Theme.dark
+        onDarkChanged: requestPaint()
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
         onPaint: {
             var ctx = getContext("2d")
             ctx.reset()
-            var g = ctx.createRadialGradient(width * 0.12, 0, 0, width * 0.12, 0, width * 0.55)
-            g.addColorStop(0, "#1a2a5533")
-            g.addColorStop(1, "#00000000")
+            var g = ctx.createRadialGradient(width * 0.18, 0, 0, width * 0.18, 0, width * 0.6)
+            g.addColorStop(0, Theme.alpha(Theme.accent, Theme.dark ? 0.10 : 0.07))
+            g.addColorStop(1, Theme.alpha(Theme.accent, 0))
             ctx.fillStyle = g
             ctx.fillRect(0, 0, width, height)
+            var step = 22
+            for (var y = step; y < height; y += step) {
+                ctx.fillStyle = Theme.alpha(Theme.textMuted, (Theme.dark ? 0.10 : 0.16) * (1 - y / height))
+                for (var x = Theme.sidebarWidth + step; x < width; x += step)
+                    ctx.fillRect(x, y, 1, 1)
+            }
         }
     }
 
@@ -113,489 +160,169 @@ Window {
         anchors.fill: parent
         spacing: 0
 
-        // —— Left sidebar ——
-        Rectangle {
+        Sidebar {
             Layout.preferredWidth: Theme.sidebarWidth
             Layout.fillHeight: true
-
-            gradient: Gradient {
-                orientation: Gradient.Vertical
-                GradientStop { position: 0.0; color: Theme.bgSidebar }
-                GradientStop { position: 1.0; color: Theme.bgSidebarBottom }
-            }
-
-            Rectangle {
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: 1
-                color: Theme.border
-            }
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 0
-                spacing: 0
-
-                // Brand
-                Item {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 68
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.spaceLg
-                        anchors.rightMargin: Theme.spaceLg
-                        spacing: Theme.spaceMd
-
-                        Rectangle {
-                            width: 34; height: 34; radius: Theme.radiusMd
-                            gradient: Gradient {
-                                orientation: Gradient.Vertical
-                                GradientStop { position: 0.0; color: Theme.accent }
-                                GradientStop { position: 1.0; color: Theme.accent2 }
-                            }
-                            Icon {
-                                anchors.centerIn: parent
-                                width: 18; height: 18
-                                name: "layers"
-                                color: "#ffffff"
-                                strokeWidth: 1.7
-                            }
-                        }
-
-                        ColumnLayout {
-                            spacing: 1
-                            Layout.fillWidth: true
-                            Label {
-                                text: "ForgeSight"
-                                font.family: Theme.fontFamily
-                                font.bold: true
-                                font.pixelSize: Theme.fontLg
-                                color: Theme.textPrimary
-                            }
-                            Label {
-                                text: "Plant Monitor"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontXs
-                                color: Theme.textMuted
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Theme.divider
-                }
-
-                // Nav section label
-                Label {
-                    Layout.leftMargin: Theme.spaceLg
-                    Layout.topMargin: Theme.spaceLg
-                    Layout.bottomMargin: Theme.spaceSm
-                    text: "MONITORING"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 10
-                    font.bold: true
-                    font.letterSpacing: 1.4
-                    color: Theme.textMuted
-                }
-
-                Repeater {
-                    model: [
-                        { label: "Devices", index: 0, icon: "grid" },
-                        { label: "Alarms", index: 1, icon: "bell" },
-                        { label: "History", index: 2, icon: "chart" },
-                        { label: "Rules", index: 3, icon: "gauge" },
-                    ]
-                    delegate: Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 42
-                        Layout.leftMargin: Theme.spaceSm
-                        Layout.rightMargin: Theme.spaceSm
-
-                        property bool active: root.navIndex === modelData.index
-
-                        Rectangle {
-                            id: navBg
-                            anchors.fill: parent
-                            radius: Theme.radiusMd
-                            color: parent.active ? Theme.accentSoft
-                                   : (navMouse.containsMouse ? Theme.bgCardHover : "transparent")
-                            border.width: parent.active ? 1 : 0
-                            border.color: Qt.rgba(0.36, 0.55, 1.0, 0.35)
-
-                            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-
-                            Rectangle {
-                                visible: parent.parent.active
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                anchors.leftMargin: -1
-                                width: 3
-                                height: 20
-                                radius: 1.5
-                                gradient: Gradient {
-                                    orientation: Gradient.Vertical
-                                    GradientStop { position: 0.0; color: Theme.accent }
-                                    GradientStop { position: 1.0; color: Theme.accent2 }
-                                }
-                            }
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: Theme.spaceLg
-                                anchors.rightMargin: Theme.spaceMd
-                                spacing: Theme.spaceMd
-
-                                Icon {
-                                    name: modelData.icon
-                                    width: 16; height: 16
-                                    color: parent.parent.parent.active ? Theme.accent : Theme.textMuted
-                                    Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-                                }
-
-                                Label {
-                                    text: modelData.label
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontMd
-                                    font.bold: parent.parent.parent.active
-                                    color: parent.parent.parent.active
-                                           ? Theme.textPrimary : Theme.textSecondary
-                                    Layout.fillWidth: true
-                                }
-
-                                Rectangle {
-                                    visible: modelData.index === 0 && deviceModel.count > 0
-                                    width: Math.max(22, countDev.implicitWidth + 10)
-                                    height: 20
-                                    radius: Theme.radiusSm
-                                    color: Theme.bgElevated
-                                    Label {
-                                        id: countDev
-                                        anchors.centerIn: parent
-                                        text: deviceModel.count
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                        color: Theme.textSecondary
-                                    }
-                                }
-
-                                Rectangle {
-                                    visible: modelData.index === 1 && alarmCount > 0
-                                    width: Math.max(22, countAlm.implicitWidth + 10)
-                                    height: 20
-                                    radius: Theme.radiusSm
-                                    color: Theme.criticalBg
-                                    border.color: Theme.critical
-                                    border.width: 1
-                                    Label {
-                                        id: countAlm
-                                        anchors.centerIn: parent
-                                        text: alarmCount
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                        color: Theme.critical
-                                    }
-                                }
-                            }
-
-                            MouseArea {
-                                id: navMouse
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                hoverEnabled: true
-                                onClicked: root.navIndex = modelData.index
-                            }
-                        }
-                    }
-                }
-
-                Item { Layout.fillHeight: true }
-
-                // Connection footer
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Theme.divider
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 60
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: Theme.spaceLg
-                        spacing: Theme.spaceSm
-
-                        Item {
-                            width: 10; height: 10
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: 10; height: 10; radius: 5
-                                color: root.offline ? Theme.critical : Theme.success
-                            }
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: 10; height: 10; radius: 5
-                                color: root.offline ? Theme.critical : Theme.success
-                                visible: !root.offline
-                                opacity: 0.6
-                                SequentialAnimation on scale {
-                                    running: !root.offline
-                                    loops: Animation.Infinite
-                                    NumberAnimation { from: 1.0; to: 2.4; duration: 1400; easing.type: Easing.OutCubic }
-                                }
-                                SequentialAnimation on opacity {
-                                    running: !root.offline
-                                    loops: Animation.Infinite
-                                    NumberAnimation { from: 0.6; to: 0.0; duration: 1400; easing.type: Easing.OutCubic }
-                                }
-                            }
-                        }
-
-                        ColumnLayout {
-                            spacing: 1
-                            Layout.fillWidth: true
-                            RowLayout {
-                                spacing: 6
-                                Label {
-                                    text: wsClient.connected ? "Connected" : "Disconnected"
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSm
-                                    font.bold: true
-                                    color: Theme.textPrimary
-                                }
-                                Rectangle {
-                                    visible: offlineCache.pendingAckCount > 0
-                                    radius: Theme.radiusSm
-                                    color: Theme.warningBg
-                                    border.color: Theme.warning
-                                    border.width: 1
-                                    height: 16
-                                    width: pendingLabel.implicitWidth + 10
-                                    Label {
-                                        id: pendingLabel
-                                        anchors.centerIn: parent
-                                        text: offlineCache.pendingAckCount + " pending sync"
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 9
-                                        font.bold: true
-                                        color: Theme.warning
-                                    }
-                                }
-                            }
-                            Label {
-                                text: root.lastUpdatedText
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 10
-                                color: root.stale ? Theme.warning : Theme.textMuted
-                            }
-                            Label {
-                                text: "ws://127.0.0.1:8081"
-                                font.family: Theme.fontFamilyMono
-                                font.pixelSize: 10
-                                color: Theme.textMuted
-                                elide: Text.ElideMiddle
-                                Layout.fillWidth: true
-                            }
-                        }
-                    }
-                }
-            }
+            currentIndex: root.navIndex
+            items: root.pages
+            badges: [deviceModel.count, root.alarmCount, 0, ruleModel.count]
+            tones: ["", root.alarmCount > 0 ? "critical" : "", "", ""]
+            linkState: root.linkState
+            lastUpdatedText: root.lastUpdatedText
+            pendingSync: offlineCache.pendingAckCount
+            endpoint: wsClient.url.toString()
+            freshness: root.freshness
+            onNavigate: function(index) { root.navIndex = index }
         }
 
-        // —— Main content ——
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // Top status bar
-            Rectangle {
+            TopBar {
                 Layout.fillWidth: true
                 Layout.preferredHeight: Theme.topBarHeight
-                color: Theme.bgTopBar
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    height: 1
-                    color: Theme.border
-                }
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: Theme.spaceXl
-                    anchors.rightMargin: Theme.spaceXl
-                    spacing: Theme.spaceLg
-
-                    Label {
-                        text: root.navIndex === 0 ? "Devices"
-                            : root.navIndex === 1 ? "Alarms"
-                            : root.navIndex === 2 ? "History"
-                            : "Rules"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontXl
-                        font.bold: true
-                        color: Theme.textPrimary
-                    }
-
-                    Label {
-                        text: root.statusHint.length > 0
-                              ? root.statusHint
-                              : (root.navIndex === 0
-                                 ? "Live sensor readings across the plant"
-                                 : root.navIndex === 1
-                                 ? "Active and acknowledged alarm events"
-                                 : root.navIndex === 2
-                                 ? "Historical trends and export"
-                                 : "Create and manage alarm thresholds")
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSm
-                        color: root.statusHint.length > 0 ? Theme.warning : Theme.textMuted
-                        Layout.fillWidth: true
-                    }
-
-                    // KPI chips — muted unless abnormal
-                    Rectangle {
-                        height: 30
-                        width: kpiDevRow.implicitWidth + 22
-                        radius: Theme.radiusMd
-                        color: Theme.bgElevated
-                        border.color: Theme.border
-                        border.width: 1
-                        RowLayout {
-                            id: kpiDevRow
-                            anchors.centerIn: parent
-                            spacing: 6
-                            Icon { name: "grid"; width: 12; height: 12; color: Theme.textSecondary }
-                            Label {
-                                text: deviceModel.count + " devices"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontXs
-                                color: Theme.textSecondary
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        height: 30
-                        width: kpiAlmRow.implicitWidth + 22
-                        radius: Theme.radiusMd
-                        color: alarmCount > 0 ? Theme.criticalBg : Theme.bgElevated
-                        border.color: alarmCount > 0 ? Theme.critical : Theme.border
-                        border.width: 1
-                        Behavior on color { ColorAnimation { duration: Theme.motionMed } }
-                        RowLayout {
-                            id: kpiAlmRow
-                            anchors.centerIn: parent
-                            spacing: 6
-                            Icon { name: "bell"; width: 12; height: 12; color: alarmCount > 0 ? Theme.critical : Theme.textSecondary }
-                            Label {
-                                text: alarmCount + " unacked"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontXs
-                                font.bold: alarmCount > 0
-                                color: alarmCount > 0 ? Theme.critical : Theme.textSecondary
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        height: 30
-                        width: kpiLiveRow.implicitWidth + 24
-                        radius: Theme.radiusMd
-                        color: root.offline ? Theme.criticalBg : Theme.successBg
-                        border.color: root.offline ? Theme.critical : Theme.success
-                        border.width: 1
-                        Behavior on color { ColorAnimation { duration: Theme.motionMed } }
-
-                        ToolTip.visible: liveMouse.containsMouse
-                        ToolTip.text: root.offline ? root.lastUpdatedText + " — showing cached values"
-                                                    : root.lastUpdatedText
-
-                        RowLayout {
-                            id: kpiLiveRow
-                            anchors.centerIn: parent
-                            spacing: 6
-                            Rectangle {
-                                width: 6; height: 6; radius: 3
-                                color: root.offline ? Theme.critical : Theme.success
-                            }
-                            Label {
-                                text: root.offline ? "OFFLINE" : "LIVE"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontXs
-                                font.bold: true
-                                font.letterSpacing: 0.6
-                                color: root.offline ? Theme.critical : Theme.success
-                            }
-                        }
-
-                        MouseArea {
-                            id: liveMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            acceptedButtons: Qt.NoButton
-                        }
-                    }
-                }
+                title: root.pages[root.navIndex].label
+                subtitle: root.pages[root.navIndex].subtitle
+                hint: root.statusHint
+                deviceCount: deviceModel.count
+                unacked: root.alarmCount
+                linkState: root.linkState
+                linkTooltip: root.offline ? root.lastUpdatedText + " — showing cached values"
+                                          : root.lastUpdatedText
+                onThemeToggleRequested: Theme.toggle()
             }
 
             // Lazy Loaders — ChartView in History is expensive; don't build
             // all tabs at startup or the window appears to hang with no logs.
+            // The current page fades and rises in; the previous one fades out.
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
 
-                Loader {
+                component PanelSlot: Loader {
+                    property int page: 0
+                    readonly property bool current: root.navIndex === page
                     anchors.fill: parent
-                    active: root.navIndex === 0 || item !== null
-                    visible: root.navIndex === 0
+                    opacity: current ? 1 : 0
+                    visible: opacity > 0.01
+                    Behavior on opacity { NumberAnimation { duration: Theme.motionMed; easing.type: Easing.OutCubic } }
+                    // Lift plus a slight perspective tilt about the left edge, so
+                    // pages swing in rather than just fade.
+                    transform: [
+                        Translate {
+                            y: current ? 0 : 12
+                            Behavior on y { NumberAnimation { duration: Theme.motionSlow; easing.type: Easing.OutCubic } }
+                        },
+                        Rotation {
+                            origin.x: 0
+                            origin.y: height / 2
+                            axis { x: 0; y: 1; z: 0 }
+                            angle: current || Theme.reducedMotion ? 0 : -7
+                            Behavior on angle { NumberAnimation { duration: Theme.motionSlow; easing.type: Easing.OutCubic } }
+                        }
+                    ]
+                }
+
+                PanelSlot {
+                    page: 0
+                    active: current || item !== null
                     source: "DeviceTreePanel.qml"
                 }
-                Loader {
-                    anchors.fill: parent
-                    active: root.navIndex === 1 || item !== null
-                    visible: root.navIndex === 1
+                PanelSlot {
+                    page: 1
+                    active: current || item !== null
                     source: "AlarmPanel.qml"
                 }
-                Loader {
-                    anchors.fill: parent
-                    active: root.navIndex === 2
-                    visible: root.navIndex === 2
+                PanelSlot {
+                    id: historySlot
+                    page: 2
+                    active: current
                     asynchronous: true
                     source: "HistoryPanel.qml"
 
-                    Rectangle {
+                    Item {
                         anchors.fill: parent
                         z: 1
-                        visible: parent.status === Loader.Loading
-                        color: Theme.bgPanel
-                        Label {
+                        visible: historySlot.status === Loader.Loading
+                        Column {
+                            anchors.fill: parent
+                            anchors.margins: Theme.spaceXl
+                            spacing: Theme.spaceLg
+                            Skeleton { width: parent.width; height: 56; radius: Theme.radiusLg }
+                            Skeleton { width: parent.width; height: parent.height - 160; radius: Theme.radiusLg }
+                        }
+                        ShimmerText {
                             anchors.centerIn: parent
                             text: "Loading history view…"
-                            font.family: Theme.fontFamily
-                            color: Theme.textMuted
                             font.pixelSize: Theme.fontMd
                         }
                     }
                 }
-                Loader {
-                    anchors.fill: parent
-                    active: root.navIndex === 3 || item !== null
-                    visible: root.navIndex === 3
+                PanelSlot {
+                    page: 3
+                    active: current || item !== null
                     source: "RuleEditorPanel.qml"
                 }
             }
         }
+    }
+
+    // —— Connecting splash ——
+    // Shown until the first data arrives (cache, REST or WS). 3D when the
+    // build has Qt Quick 3D and the scene graph is hardware-accelerated,
+    // otherwise a 2D pulse.
+    Rectangle {
+        id: splash
+        anchors.fill: parent
+        z: 50
+        color: Theme.bgApp
+        readonly property bool wanted: deviceModel.count === 0 && root.linkState === "connecting"
+        opacity: wanted ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutCubic } }
+
+        Loader {
+            id: splash3d
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: -60
+            width: 420; height: 320
+            active: splash.visible && quick3dAvailable && displayOptions.enable3d
+                    && GraphicsInfo.api !== GraphicsInfo.Software
+            source: "Splash3D.qml"
+        }
+        EmptyState {
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: -60
+            visible: splash3d.status !== Loader.Ready
+            icon: "layers"
+        }
+        Column {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: splash3d.bottom
+            spacing: Theme.spaceSm
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "ForgeSight"
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontHero
+                font.bold: true
+                color: Theme.textPrimary
+            }
+            ShimmerText {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Connecting to " + wsClient.url.toString() + "…"
+                font.pixelSize: Theme.fontMd
+            }
+        }
+    }
+
+    ToastHost {
+        id: toastHost
+        anchors.fill: parent
+        z: 100
     }
 }
