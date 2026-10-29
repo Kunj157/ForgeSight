@@ -49,6 +49,10 @@ class AlarmModel : public QAbstractListModel {
     Q_INVOKABLE void clear();
     int unacknowledged_count() const;
 
+    /// Alarms with the given severity ("" = any), optionally only those not
+    /// yet acknowledged. Drives the alarm panel's per-severity summary.
+    Q_INVOKABLE int count_matching(const QString& severity, bool unacknowledged_only) const;
+
   Q_SIGNALS:
     void alarmAdded();
     void alarmAcknowledged(qint64 alarm_id);

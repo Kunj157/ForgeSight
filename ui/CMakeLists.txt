@@ -15,6 +15,10 @@ add_library(ui_lib STATIC
     src/series_stats.cpp
     src/rule_model.cpp
     src/chart_zoom.cpp
+    src/plant_layout.cpp
+    src/plant_scene_model.cpp
+    src/device_filter_model.cpp
+    src/display_options.cpp
     include/ui/device_model.h
     include/ui/alarm_model.h
     include/ui/ws_client.h
@@ -27,6 +31,10 @@ add_library(ui_lib STATIC
     include/ui/series_stats.h
     include/ui/rule_model.h
     include/ui/chart_zoom.h
+    include/ui/plant_layout.h
+    include/ui/plant_scene_model.h
+    include/ui/device_filter_model.h
+    include/ui/display_options.h
 )
 
 target_include_directories(ui_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
