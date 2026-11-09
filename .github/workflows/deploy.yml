@@ -3,8 +3,9 @@ name: Deploy (backend)
 # Optional, thin deploy workflow for an SSH-reachable host already running
 # Docker + Compose (item 20 of the production roadmap — this repo doesn't
 # have an actual VPS target, so treat this as a documented template).
-# Manual only: it never fires on a push/PR, and the check-secrets step fails
-# fast with exactly which repo secrets are missing if run unconfigured.
+# Manual only: it never fires on a push/PR. If the required secrets are not
+# configured, the check step emits a notice naming the missing ones and the
+# remaining steps are skipped, so the run finishes green without deploying.
 #
 # Required repo secrets:
 #   DEPLOY_SSH_HOST         e.g. deploy.example.com
@@ -31,19 +32,29 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check required secrets are configured
+        id: check
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          FORGESIGHT_IMAGE_OWNER: ${{ secrets.FORGESIGHT_IMAGE_OWNER }}
         run: |
           missing=()
-          [[ -z "${{ secrets.DEPLOY_SSH_HOST }}" ]] && missing+=(DEPLOY_SSH_HOST)
-          [[ -z "${{ secrets.DEPLOY_SSH_USER }}" ]] && missing+=(DEPLOY_SSH_USER)
-          [[ -z "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" ]] && missing+=(DEPLOY_SSH_PRIVATE_KEY)
-          [[ -z "${{ secrets.DEPLOY_PATH }}" ]] && missing+=(DEPLOY_PATH)
-          [[ -z "${{ secrets.FORGESIGHT_IMAGE_OWNER }}" ]] && missing+=(FORGESIGHT_IMAGE_OWNER)
+          [[ -z "$DEPLOY_SSH_HOST" ]] && missing+=(DEPLOY_SSH_HOST)
+          [[ -z "$DEPLOY_SSH_USER" ]] && missing+=(DEPLOY_SSH_USER)
+          [[ -z "$DEPLOY_SSH_PRIVATE_KEY" ]] && missing+=(DEPLOY_SSH_PRIVATE_KEY)
+          [[ -z "$DEPLOY_PATH" ]] && missing+=(DEPLOY_PATH)
+          [[ -z "$FORGESIGHT_IMAGE_OWNER" ]] && missing+=(FORGESIGHT_IMAGE_OWNER)
           if [[ ${#missing[@]} -gt 0 ]]; then
-            echo "::error::deploy.yml is a template — this repo has no configured deploy target yet. Set these repo secrets first: ${missing[*]}"
-            exit 1
+            echo "::notice title=Deploy skipped::No deploy target configured. Set these repo secrets to enable deploys: ${missing[*]}"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Configure SSH
+        if: steps.check.outputs.configured == 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
@@ -55,6 +66,7 @@ jobs:
       # this checkout, so a deploy never depends on this repo's working
       # tree matching what the host is running — only the tagged image does).
       - name: Pull and restart the backend stack over SSH
+        if: steps.check.outputs.configured == 'true'
         env:
           SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
           SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
