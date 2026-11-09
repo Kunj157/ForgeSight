@@ -1,7 +1,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import { lazy, Suspense, useEffect, useState } from "react";
 
-import { APPIMAGE, media, REPO } from "../links";
+import { APPIMAGE, DEMO, media, REPO } from "../links";
 
 // three.js loads after first paint and never blocks the headline.
 const HeroScene = lazy(() => import("./hero-scene"));
@@ -76,6 +76,13 @@ export function Hero() {
             >
               Download for Linux
               <span className="font-mono text-[11px] opacity-80">AppImage</span>
+            </a>
+            <a
+              href={DEMO}
+              className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-surface-1/70 px-5 py-2.5 text-sm font-semibold text-fg backdrop-blur transition hover:bg-surface-2"
+            >
+              Try the live demo
+              <span className="font-mono text-[11px] text-fg-2">simulated data</span>
             </a>
             <a
               href={REPO}
