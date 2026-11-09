@@ -44,6 +44,8 @@ int main(int argc, char* argv[]) {
     ui::RuleModel ruleModel;
     ui::ChartZoom chartZoom;
     ui::DisplayOptions displayOptions(QProcessEnvironment::systemEnvironment());
+    ui::BackendApi& backend = apiClient;
+    ui::LiveFeed& feed = wsClient;
 
     // Declared after every object exposed to QML so it is destroyed first:
     // otherwise live bindings re-evaluate against already-deleted context
@@ -68,6 +70,8 @@ int main(int argc, char* argv[]) {
     QString apiKey = qEnvironmentVariable("FORGESIGHT_API_KEY");
     bool allowInsecureTls = qEnvironmentVariable("FORGESIGHT_ALLOW_INSECURE_TLS") == "1";
 
+    // Concrete clients are configured here; everything below talks to the
+    // data sources through their interfaces only.
     apiClient.set_base_url(QUrl(apiBase));
     apiClient.set_api_key(apiKey);
     wsClient.set_url(QUrl(wsUrl));
@@ -91,18 +95,18 @@ int main(int argc, char* argv[]) {
     }
 
     // Seed tiles from REST, then keep them live via WebSocket.
-    QObject::connect(&apiClient, &ui::ApiClient::readingReceived, &deviceModel,
+    QObject::connect(&backend, &ui::BackendApi::readingReceived, &deviceModel,
                      &ui::DeviceModel::updateDevice);
-    QObject::connect(&apiClient, &ui::ApiClient::deviceMetaReceived, &deviceModel,
+    QObject::connect(&backend, &ui::BackendApi::deviceMetaReceived, &deviceModel,
                      &ui::DeviceModel::updateDeviceMeta);
-    QObject::connect(&apiClient, &ui::ApiClient::alarmReceived, &alarmModel,
+    QObject::connect(&backend, &ui::BackendApi::alarmReceived, &alarmModel,
                      [&alarmModel](qint64 id, const QString& deviceId, const QString& sensor,
                                    double value, const QString& severity, const QString& message,
                                    const QString& timestamp, bool acknowledged) {
                          alarmModel.add_alarm(id, deviceId, sensor, value, severity, message,
                                               timestamp, acknowledged);
                      });
-    QObject::connect(&apiClient, &ui::ApiClient::alarmAckSucceeded, &alarmModel,
+    QObject::connect(&backend, &ui::BackendApi::alarmAckSucceeded, &alarmModel,
                      &ui::AlarmModel::acknowledge);
 
     // Every reading (REST bootstrap or live WS push) flows through
@@ -113,14 +117,14 @@ int main(int argc, char* argv[]) {
 
     // An ack succeeding clears it from the pending-sync queue whether it was
     // sent live or flushed after reconnecting.
-    QObject::connect(&apiClient, &ui::ApiClient::alarmAckSucceeded, &offlineCache,
+    QObject::connect(&backend, &ui::BackendApi::alarmAckSucceeded, &offlineCache,
                      &ui::OfflineCache::clearAck);
 
-    QObject::connect(&wsClient, &ui::WsClient::connectedChanged, &apiClient, [&]() {
-        if (wsClient.is_connected()) {
+    QObject::connect(&feed, &ui::LiveFeed::connectedChanged, &backend, [&]() {
+        if (feed.is_connected()) {
             std::fprintf(stderr, "ForgeSight: WebSocket connected — bootstrapping\n");
             std::fflush(stderr);
-            apiClient.bootstrap();
+            backend.bootstrap();
 
             const auto pending = offlineCache.pendingAcks();
             if (!pending.isEmpty()) {
@@ -128,29 +132,29 @@ int main(int argc, char* argv[]) {
                              int(pending.size()));
                 std::fflush(stderr);
                 for (qint64 id : pending) {
-                    apiClient.acknowledgeAlarm(id);
+                    backend.acknowledgeAlarm(id);
                 }
             }
         }
     });
 
     // Also bootstrap once at startup even if WS is down (shows last DB state).
-    QTimer::singleShot(300, &apiClient, &ui::ApiClient::bootstrap);
+    QTimer::singleShot(300, &backend, &ui::BackendApi::bootstrap);
 
-    wsClient.connectToServer();
+    feed.connectToServer();
     // Close the socket (and stop reconnecting) while the event loop is still
     // running, instead of tearing a possibly half-open QWebSocket down from
     // ~WsClient after the QML scene is gone — that path intermittently
     // corrupted the heap on quit after a reconnect.
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, &wsClient,
-                     [&wsClient]() { wsClient.disconnectFromServer(); });
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &feed,
+                     [&feed]() { feed.disconnectFromServer(); });
 
     auto* ctx = engine.rootContext();
     ctx->setContextProperty("deviceModel", &deviceModel);
     ctx->setContextProperty("alarmModel", &alarmModel);
-    ctx->setContextProperty("wsClient", &wsClient);
+    ctx->setContextProperty("wsClient", &feed);
     ctx->setContextProperty("historyModel", &historyModel);
-    ctx->setContextProperty("apiClient", &apiClient);
+    ctx->setContextProperty("apiClient", &backend);
     ctx->setContextProperty("offlineCache", &offlineCache);
     ctx->setContextProperty("timeFormat", &timeFormat);
     ctx->setContextProperty("seriesStats", &seriesStats);

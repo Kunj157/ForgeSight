@@ -19,6 +19,8 @@ add_library(ui_lib STATIC
     src/plant_scene_model.cpp
     src/device_filter_model.cpp
     src/display_options.cpp
+    include/ui/backend_api.h
+    include/ui/live_feed.h
     include/ui/device_model.h
     include/ui/alarm_model.h
     include/ui/ws_client.h

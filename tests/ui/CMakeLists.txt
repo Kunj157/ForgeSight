@@ -25,6 +25,7 @@ add_executable(ui_tests
     test_plant_layout.cpp
     test_device_filter_model.cpp
     test_display_options.cpp
+    test_data_source.cpp
 )
 
 target_link_libraries(ui_tests PRIVATE
