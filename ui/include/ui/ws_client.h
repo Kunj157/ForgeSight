@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ui/live_feed.h"
+
 #include <QObject>
 #include <QTimer>
 #include <QUrl>
@@ -7,10 +9,8 @@
 
 namespace ui {
 
-class WsClient : public QObject {
+class WsClient : public LiveFeed {
     Q_OBJECT
-    Q_PROPERTY(bool connected READ is_connected NOTIFY connectedChanged)
-    Q_PROPERTY(QUrl url READ url WRITE set_url NOTIFY urlChanged)
     Q_PROPERTY(
         bool autoReconnect READ auto_reconnect WRITE set_auto_reconnect NOTIFY autoReconnectChanged)
     Q_PROPERTY(QString apiKey READ api_key WRITE set_api_key NOTIFY apiKeyChanged)
@@ -20,9 +20,9 @@ class WsClient : public QObject {
   public:
     explicit WsClient(QObject* parent = nullptr);
 
-    bool is_connected() const;
-    QUrl url() const;
-    void set_url(const QUrl& url);
+    bool is_connected() const override;
+    QUrl url() const override;
+    void set_url(const QUrl& url) override;
 
     bool auto_reconnect() const;
     void set_auto_reconnect(bool enabled);
@@ -40,19 +40,13 @@ class WsClient : public QObject {
     /// Exponential backoff: 1s, 2s, 4s… capped at 30s.
     static int reconnect_delay_ms(int attempt);
 
-    Q_INVOKABLE void connectToServer();
-    Q_INVOKABLE void disconnectFromServer();
+    Q_INVOKABLE void connectToServer() override;
+    Q_INVOKABLE void disconnectFromServer() override;
 
   Q_SIGNALS:
-    void connectedChanged();
-    void urlChanged();
-    void autoReconnectChanged();
     void apiKeyChanged();
+    void autoReconnectChanged();
     void allowInsecureTlsChanged();
-    void readingReceived(const QString& json);
-    void alarmReceived(const QString& json);
-    void connectionError(const QString& error);
-    void disconnected();
 
   private Q_SLOTS:
     void on_connected();

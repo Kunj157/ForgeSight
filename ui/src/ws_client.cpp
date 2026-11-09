@@ -9,7 +9,7 @@
 
 namespace ui {
 
-WsClient::WsClient(QObject* parent) : QObject(parent) {
+WsClient::WsClient(QObject* parent) : LiveFeed(parent) {
     connect(&socket_, &QWebSocket::connected, this, &WsClient::on_connected);
     connect(&socket_, &QWebSocket::disconnected, this, &WsClient::on_disconnected);
     connect(&socket_, &QWebSocket::textMessageReceived, this, &WsClient::on_text_message_received);

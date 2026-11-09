@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ui/backend_api.h"
+
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QObject>
@@ -13,10 +15,9 @@ QT_FORWARD_DECLARE_CLASS(QNetworkReply)
 namespace ui {
 
 /// Thin REST client used to seed models before/alongside WebSocket live data.
-class ApiClient : public QObject {
+class ApiClient : public BackendApi {
     Q_OBJECT
     Q_PROPERTY(QUrl baseUrl READ base_url WRITE set_base_url NOTIFY baseUrlChanged)
-    Q_PROPERTY(bool busy READ is_busy NOTIFY busyChanged)
     Q_PROPERTY(QString apiKey READ api_key WRITE set_api_key NOTIFY apiKeyChanged)
 
   public:
@@ -25,48 +26,31 @@ class ApiClient : public QObject {
     QUrl base_url() const;
     void set_base_url(const QUrl& url);
 
-    bool is_busy() const;
+    bool is_busy() const override;
 
     QString api_key() const;
     void set_api_key(const QString& key);
 
-    Q_INVOKABLE void fetchLatestReadings();
-    Q_INVOKABLE void fetchAlarms();
-    Q_INVOKABLE void bootstrap();
-    Q_INVOKABLE void acknowledgeAlarm(qint64 id);
+    Q_INVOKABLE void fetchLatestReadings() override;
+    Q_INVOKABLE void fetchAlarms() override;
+    Q_INVOKABLE void bootstrap() override;
+    Q_INVOKABLE void acknowledgeAlarm(qint64 id) override;
     Q_INVOKABLE void fetchHistory(const QString& deviceId, const QString& sensor,
-                                  const QString& since);
-    Q_INVOKABLE void fetchDevices();
+                                  const QString& since) override;
+    Q_INVOKABLE void fetchDevices() override;
 
-    Q_INVOKABLE void fetchRules();
+    Q_INVOKABLE void fetchRules() override;
     Q_INVOKABLE void createRule(const QString& deviceId, const QString& sensor,
                                 const QString& condition, double threshold,
-                                const QString& severity);
+                                const QString& severity) override;
     Q_INVOKABLE void updateRule(qint64 id, const QString& deviceId, const QString& sensor,
                                 const QString& condition, double threshold,
-                                const QString& severity);
-    Q_INVOKABLE void deleteRule(qint64 id);
+                                const QString& severity) override;
+    Q_INVOKABLE void deleteRule(qint64 id) override;
 
   Q_SIGNALS:
     void baseUrlChanged();
-    void busyChanged();
     void apiKeyChanged();
-    void readingReceived(const QString& deviceId, const QString& sensor, double value,
-                         const QString& unit, const QString& timestamp, bool anomaly);
-    void alarmReceived(qint64 id, const QString& deviceId, const QString& sensor, double value,
-                       const QString& severity, const QString& message, const QString& timestamp,
-                       bool acknowledged);
-    void alarmAckSucceeded(qint64 id);
-    void bootstrapFinished(bool ok, const QString& error);
-    void requestFailed(const QString& error);
-    void historyPointReceived(const QString& deviceId, const QString& sensor, double value,
-                              const QString& unit, const QString& timestamp, bool anomaly);
-    void historyLoadFinished(bool ok, const QString& error);
-    void deviceMetaReceived(const QString& deviceId, const QString& plant, const QString& floor);
-    void ruleReceived(qint64 id, const QString& deviceId, const QString& sensor,
-                      const QString& condition, double threshold, const QString& severity);
-    void rulesLoadFinished(bool ok, const QString& error);
-    void ruleMutationFinished(bool ok, const QString& error);
 
   private:
     void set_busy(bool busy);
