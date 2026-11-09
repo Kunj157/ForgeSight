@@ -185,7 +185,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
 
 ## Deploy (optional)
 
-`.github/workflows/deploy.yml` is a thin, manual (`workflow_dispatch`-only) template for pushing a release to an SSH-reachable host that already has Docker + Compose installed. Until the following repository secrets are set, it fails with an error listing the missing ones:
+`.github/workflows/deploy.yml` is a thin, manual (`workflow_dispatch`-only) template for pushing a release to an SSH-reachable host that already has Docker + Compose installed. Until the following repository secrets are set, a run finishes green without deploying: the check step posts a notice listing the missing secrets and the remaining steps are skipped. The secrets are:
 
 | Secret | Purpose |
 |---|---|
