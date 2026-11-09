@@ -325,4 +325,27 @@ Window {
         anchors.fill: parent
         z: 100
     }
+
+    // Browser demo: the data is simulated, so say so and link the source.
+    Rectangle {
+        id: demoBanner
+        // demoMode is a context property set from C++ (true in the browser build).
+        visible: demoMode === true
+        z: 1000
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 28
+        color: Theme.bgTopBar
+
+        Text {
+            anchors.centerIn: parent
+            color: Theme.textSecondary
+            font.pixelSize: 12
+            text: "Live demo — simulated data · <a href=\"https://github.com/Kunj157/ForgeSight\">View source on GitHub</a>"
+            textFormat: Text.RichText
+            linkColor: Theme.accent
+            onLinkActivated: function (link) { Qt.openUrlExternally(link) }
+        }
+    }
 }

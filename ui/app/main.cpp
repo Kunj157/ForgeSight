@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QDateTime>
 #include <QProcessEnvironment>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -6,6 +7,7 @@
 #include <QTimer>
 #include <QtQml/qqml.h>
 
+#include <cstdint>
 #include <cstdio>
 
 #ifdef FORGESIGHT_HAVE_QUICK3D
@@ -13,18 +15,36 @@
 #endif
 
 #include "ui/alarm_model.h"
-#include "ui/api_client.h"
 #include "ui/chart_zoom.h"
 #include "ui/device_filter_model.h"
 #include "ui/device_model.h"
 #include "ui/display_options.h"
 #include "ui/history_model.h"
-#include "ui/offline_cache.h"
 #include "ui/plant_scene_model.h"
 #include "ui/rule_model.h"
 #include "ui/series_stats.h"
 #include "ui/time_format.h"
+
+#ifdef FORGESIGHT_DEMO_MODE
+#include "ui/demo/demo_backend.h"
+#include "ui/demo/demo_feed.h"
+#include "ui/demo/demo_offline_stub.h"
+#include "ui/demo/demo_simulator.h"
+#else
+#include "ui/api_client.h"
+#include "ui/offline_cache.h"
 #include "ui/ws_client.h"
+#endif
+
+namespace {
+
+#ifdef FORGESIGHT_DEMO_MODE
+constexpr std::uint64_t kDemoSeed = 42;
+constexpr int kDemoWarmUpTicks = 120; // two minutes of history on first load
+constexpr double kDemoAnomalyRate = 0.02;
+#endif
+
+} // namespace
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
@@ -35,15 +55,37 @@ int main(int argc, char* argv[]) {
 
     ui::DeviceModel deviceModel;
     ui::AlarmModel alarmModel;
+#ifdef FORGESIGHT_DEMO_MODE
+    // Browser build: every data source is the in-process simulator.
+    // Start the clock two minutes in the past so warm-up history ends "now".
+    ui::demo::DemoSimulator simulator(
+        kDemoSeed, QDateTime::currentSecsSinceEpoch() - kDemoWarmUpTicks, kDemoAnomalyRate);
+    simulator.warm_up(kDemoWarmUpTicks);
+    ui::demo::DemoBackend demoBackend(simulator);
+    ui::demo::DemoFeed demoFeed(simulator);
+    ui::demo::OfflineCacheStub offlineCache;
+#else
     ui::WsClient wsClient;
+#endif
     ui::HistoryModel historyModel;
+#ifndef FORGESIGHT_DEMO_MODE
     ui::ApiClient apiClient;
     ui::OfflineCache offlineCache;
+#endif
     ui::TimeFormat timeFormat;
     ui::SeriesStats seriesStats;
     ui::RuleModel ruleModel;
     ui::ChartZoom chartZoom;
     ui::DisplayOptions displayOptions(QProcessEnvironment::systemEnvironment());
+    // The rest of the wiring talks to the data sources through these
+    // interfaces only, so the browser demo can substitute its own.
+#ifdef FORGESIGHT_DEMO_MODE
+    ui::BackendApi& backend = demoBackend;
+    ui::LiveFeed& feed = demoFeed;
+#else
+    ui::BackendApi& backend = apiClient;
+    ui::LiveFeed& feed = wsClient;
+#endif
 
     // Declared after every object exposed to QML so it is destroyed first:
     // otherwise live bindings re-evaluate against already-deleted context
@@ -61,6 +103,7 @@ int main(int argc, char* argv[]) {
     constexpr bool quick3dAvailable = false;
 #endif
 
+#ifndef FORGESIGHT_DEMO_MODE
     QString apiBase = qEnvironmentVariable("FORGESIGHT_API", "http://127.0.0.1:8080");
     QString wsUrl = qEnvironmentVariable("FORGESIGHT_WS", "ws://127.0.0.1:8081");
     QString cacheDbPath =
@@ -68,6 +111,8 @@ int main(int argc, char* argv[]) {
     QString apiKey = qEnvironmentVariable("FORGESIGHT_API_KEY");
     bool allowInsecureTls = qEnvironmentVariable("FORGESIGHT_ALLOW_INSECURE_TLS") == "1";
 
+    // Concrete clients are configured here; everything below talks to the
+    // data sources through their interfaces only.
     apiClient.set_base_url(QUrl(apiBase));
     apiClient.set_api_key(apiKey);
     wsClient.set_url(QUrl(wsUrl));
@@ -89,22 +134,24 @@ int main(int argc, char* argv[]) {
         deviceModel.updateDevice(cached.device_id, cached.sensor, cached.value, cached.unit,
                                  cached.timestamp, cached.anomaly);
     }
+#endif
 
     // Seed tiles from REST, then keep them live via WebSocket.
-    QObject::connect(&apiClient, &ui::ApiClient::readingReceived, &deviceModel,
+    QObject::connect(&backend, &ui::BackendApi::readingReceived, &deviceModel,
                      &ui::DeviceModel::updateDevice);
-    QObject::connect(&apiClient, &ui::ApiClient::deviceMetaReceived, &deviceModel,
+    QObject::connect(&backend, &ui::BackendApi::deviceMetaReceived, &deviceModel,
                      &ui::DeviceModel::updateDeviceMeta);
-    QObject::connect(&apiClient, &ui::ApiClient::alarmReceived, &alarmModel,
+    QObject::connect(&backend, &ui::BackendApi::alarmReceived, &alarmModel,
                      [&alarmModel](qint64 id, const QString& deviceId, const QString& sensor,
                                    double value, const QString& severity, const QString& message,
                                    const QString& timestamp, bool acknowledged) {
                          alarmModel.add_alarm(id, deviceId, sensor, value, severity, message,
                                               timestamp, acknowledged);
                      });
-    QObject::connect(&apiClient, &ui::ApiClient::alarmAckSucceeded, &alarmModel,
+    QObject::connect(&backend, &ui::BackendApi::alarmAckSucceeded, &alarmModel,
                      &ui::AlarmModel::acknowledge);
 
+#ifndef FORGESIGHT_DEMO_MODE
     // Every reading (REST bootstrap or live WS push) flows through
     // DeviceModel::updateDevice(), so persisting from its deviceUpdated
     // signal keeps the cache fresh regardless of source.
@@ -113,44 +160,50 @@ int main(int argc, char* argv[]) {
 
     // An ack succeeding clears it from the pending-sync queue whether it was
     // sent live or flushed after reconnecting.
-    QObject::connect(&apiClient, &ui::ApiClient::alarmAckSucceeded, &offlineCache,
+    QObject::connect(&backend, &ui::BackendApi::alarmAckSucceeded, &offlineCache,
                      &ui::OfflineCache::clearAck);
+#endif
 
-    QObject::connect(&wsClient, &ui::WsClient::connectedChanged, &apiClient, [&]() {
-        if (wsClient.is_connected()) {
+    QObject::connect(&feed, &ui::LiveFeed::connectedChanged, &backend, [&]() {
+        if (feed.is_connected()) {
+#ifdef FORGESIGHT_DEMO_MODE
+            std::fprintf(stderr, "ForgeSight: live feed connected — bootstrapping\n");
+#else
             std::fprintf(stderr, "ForgeSight: WebSocket connected — bootstrapping\n");
+#endif
             std::fflush(stderr);
-            apiClient.bootstrap();
-
+            backend.bootstrap();
+#ifndef FORGESIGHT_DEMO_MODE
             const auto pending = offlineCache.pendingAcks();
             if (!pending.isEmpty()) {
                 std::fprintf(stderr, "ForgeSight: flushing %d queued alarm ack(s)\n",
                              int(pending.size()));
                 std::fflush(stderr);
                 for (qint64 id : pending) {
-                    apiClient.acknowledgeAlarm(id);
+                    backend.acknowledgeAlarm(id);
                 }
             }
+#endif
         }
     });
 
     // Also bootstrap once at startup even if WS is down (shows last DB state).
-    QTimer::singleShot(300, &apiClient, &ui::ApiClient::bootstrap);
+    QTimer::singleShot(300, &backend, &ui::BackendApi::bootstrap);
 
-    wsClient.connectToServer();
+    feed.connectToServer();
     // Close the socket (and stop reconnecting) while the event loop is still
     // running, instead of tearing a possibly half-open QWebSocket down from
     // ~WsClient after the QML scene is gone — that path intermittently
     // corrupted the heap on quit after a reconnect.
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, &wsClient,
-                     [&wsClient]() { wsClient.disconnectFromServer(); });
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &feed,
+                     [&feed]() { feed.disconnectFromServer(); });
 
     auto* ctx = engine.rootContext();
     ctx->setContextProperty("deviceModel", &deviceModel);
     ctx->setContextProperty("alarmModel", &alarmModel);
-    ctx->setContextProperty("wsClient", &wsClient);
+    ctx->setContextProperty("wsClient", &feed);
     ctx->setContextProperty("historyModel", &historyModel);
-    ctx->setContextProperty("apiClient", &apiClient);
+    ctx->setContextProperty("apiClient", &backend);
     ctx->setContextProperty("offlineCache", &offlineCache);
     ctx->setContextProperty("timeFormat", &timeFormat);
     ctx->setContextProperty("seriesStats", &seriesStats);
@@ -164,6 +217,14 @@ int main(int argc, char* argv[]) {
     ctx->setContextProperty("displayOptions", &displayOptions);
     // Whether this build includes the Qt Quick 3D plant view.
     ctx->setContextProperty("quick3dAvailable", quick3dAvailable);
+    // Whether the simulated-data banner is shown.
+    ctx->setContextProperty("demoMode",
+#ifdef FORGESIGHT_DEMO_MODE
+                            true
+#else
+                            false
+#endif
+    );
 
     QObject::connect(&engine, &QQmlEngine::warnings, [](const QList<QQmlError>& warnings) {
         for (const auto& w : warnings) {
@@ -188,7 +249,11 @@ int main(int argc, char* argv[]) {
         win->raise();
         win->requestActivate();
         std::fprintf(stderr, "ForgeSight: window ready (%dx%d)\n", win->width(), win->height());
+#ifndef FORGESIGHT_DEMO_MODE
         std::fprintf(stderr, "ForgeSight: API %s  WS %s\n", qPrintable(apiBase), qPrintable(wsUrl));
+#else
+        std::fprintf(stderr, "ForgeSight: demo mode (simulated data)\n");
+#endif
         std::fflush(stderr);
     }
 

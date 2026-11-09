@@ -1,6 +1,8 @@
 name: landing
 
-# Builds the static marketing site (site/) and publishes it to GitHub Pages.
+# Builds the static marketing site (site/) and the wasm live demo, and publishes
+# both to GitHub Pages. This is the only workflow that deploys Pages: the site
+# is served at the root and the demo under /demo/ of the same artifact.
 # Isolated from the C++ CI: its own Node toolchain and lockfile under site/.
 
 on:
@@ -9,19 +11,41 @@ on:
     paths:
       - site/**
       - docs/media/**
+      - ui/**
+      - alarm-engine/**
+      - CMakeLists.txt
       - .github/workflows/landing.yml
+      - .github/workflows/pages.yml
+  # Pull requests run the build (site and demo) but never the deploy job.
+  pull_request:
+    branches: [dev]
+    paths:
+      - site/**
+      - docs/media/**
+      - ui/**
+      - alarm-engine/**
+      - CMakeLists.txt
+      - .github/workflows/landing.yml
+      - .github/workflows/pages.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Runs for one ref queue rather than overlap. The deploy job also takes the
+# shared `pages` group, so a manual dispatch cannot race a push deploy.
 concurrency:
-  group: pages
+  group: landing-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  demo:
+    name: Build the live demo
+    uses: ./.github/workflows/pages.yml
+
   build:
     name: Build the landing page
+    needs: demo
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -42,6 +66,12 @@ jobs:
         run: pnpm build
         env:
           PAGES_BASE_PATH: /${{ github.event.repository.name }}
+      # After the site build, which empties site/dist. The demo lands in
+      # site/dist/demo, so it is served at <site>/demo/.
+      - uses: actions/download-artifact@v7
+        with:
+          name: demo-wasm
+          path: site/dist/demo
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -49,7 +79,12 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
+    # Only pushes to main or dev deploy. Pull requests stop after the build.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: build
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     permissions:
       pages: write

@@ -8,7 +8,7 @@
 
 namespace ui {
 
-ApiClient::ApiClient(QObject* parent) : QObject(parent) {}
+ApiClient::ApiClient(QObject* parent) : BackendApi(parent) {}
 
 QUrl ApiClient::base_url() const {
     return base_url_;
