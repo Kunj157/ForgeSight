@@ -48,3 +48,18 @@ target_link_libraries(ui_lib PUBLIC
     Qt6::Network
     Qt6::Sql
 )
+
+# Browser-demo data source: a simulated plant behind the same BackendApi /
+# LiveFeed interfaces the real ApiClient and WsClient implement. Linked only
+# where it is used (demo mode, tests), so the desktop app does not pick up
+# the demo code path.
+add_library(ui_demo STATIC
+    src/demo/demo_simulator.cpp
+    src/demo/demo_backend.cpp
+    src/demo/demo_feed.cpp
+    include/ui/demo/demo_simulator.h
+    include/ui/demo/demo_backend.h
+    include/ui/demo/demo_feed.h
+)
+
+target_link_libraries(ui_demo PUBLIC ui_lib alarm_engine_core)
