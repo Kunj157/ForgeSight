@@ -26,10 +26,13 @@ add_executable(ui_tests
     test_device_filter_model.cpp
     test_display_options.cpp
     test_data_source.cpp
+    test_demo_simulator.cpp
+    test_demo_backend.cpp
 )
 
 target_link_libraries(ui_tests PRIVATE
     ui_lib
+    ui_demo
     GTest::gtest_main
     Qt6::Test
     Qt6::Quick
