@@ -73,6 +73,8 @@ jobs:
           QT_BASE="${{ runner.temp }}/qt/Qt/${QT_VERSION}"
           QT_WASM="$QT_BASE/wasm_singlethread"
           export QT_HOST_PATH="$QT_BASE/gcc_64"
+          # The wasm install's qt-cmake arrives without its execute bit.
+          chmod +x "$QT_WASM"/bin/* "$QT_BASE"/gcc_64/bin/*
           "$QT_WASM/bin/qt-cmake" -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release \
             -DFORGESIGHT_DEMO_MODE=ON
 
