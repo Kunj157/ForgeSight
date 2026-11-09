@@ -11,6 +11,7 @@
 #include <spdlog/spdlog.h>
 
 #include "alarm-engine/alarm_store.h"
+#include "alarm-engine/default_rules.h"
 #include "alarm-engine/reading_cursor.h"
 #include "alarm-engine/rule_evaluator.h"
 #include "alarm-engine/rule_reload.h"
@@ -57,27 +58,8 @@ void seed_default_rules(AlarmStore& store) {
     if (!existing.empty())
         return;
 
-    Rule rules[] = {
-        {0, "pump-001", "temperature", Condition::GreaterThan, 80.0, Severity::Warning,
-         "{device} {sensor} ({value}) exceeded threshold {threshold}"},
-        {0, "pump-001", "temperature", Condition::GreaterThan, 95.0, Severity::Critical,
-         "{device} {sensor} CRITICAL ({value}) exceeded {threshold}"},
-        {0, "pump-001", "pressure", Condition::LessThan, 1.0, Severity::Critical,
-         "{device} pressure critically low ({value} < {threshold})"},
-        {0, "pump-001", "pressure", Condition::GreaterThan, 4.5, Severity::Warning,
-         "{device} pressure high ({value} > {threshold})"},
-        {0, "pump-001", "vibration", Condition::GreaterThan, 10.0, Severity::Warning,
-         "{device} vibration high ({value} > {threshold})"},
-        {0, "compressor-001", "temperature", Condition::GreaterThan, 90.0, Severity::Warning,
-         "{device} {sensor} ({value}) exceeded {threshold}"},
-        {0, "compressor-001", "temperature", Condition::GreaterThan, 105.0, Severity::Critical,
-         "{device} {sensor} CRITICAL ({value}) exceeded {threshold}"},
-        {0, "compressor-001", "current", Condition::GreaterThan, 25.0, Severity::Warning,
-         "{device} current high ({value} > {threshold})"},
-    };
-
     int count = 0;
-    for (const auto& r : rules) {
+    for (const auto& r : default_rules()) {
         if (store.add_rule(r))
             ++count;
     }
