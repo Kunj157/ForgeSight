@@ -38,8 +38,9 @@ The shell shows connection state at all times: **connecting / live / stale / off
 
 ## Prerequisites
 
-- Qt 6.4+ (Quick, Quick Controls, Quick Shapes, Charts, WebSockets, HttpServer, Network)
+- Qt 6.4+ (Quick, Quick Controls, Quick Shapes, Charts, Widgets, WebSockets, HttpServer, Network, PrintSupport, Sql). On Ubuntu `libqt6sql6-sqlite` is the SQLite driver; the full package list is the apt step in `.github/workflows/ci.yml`
 - Optional: Qt Quick 3D (`qt6-quick3d-dev` on Ubuntu) for the 3D plant floor; without it the app builds and uses the 2.5D view
+- C++ libraries: nlohmann-json, spdlog, libpq, Paho MQTT (C and C++), librdkafka, gRPC and protobuf. The `build` job's apt step in `.github/workflows/ci.yml` lists the exact Ubuntu 24.04 packages
 - CMake 3.20+, C++20 compiler
 - PostgreSQL with database `forgesight`
 - Mosquitto MQTT broker on `localhost:1883`
@@ -52,6 +53,8 @@ cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
+
+Database integration tests connect to the libpq string in `FORGESIGHT_TEST_DB` (default `dbname=forgesight_test`) and skip themselves when that database is unreachable. CI sets `FORGESIGHT_TEST_DB` to a Postgres service container.
 
 ## Run the local stack
 
@@ -68,10 +71,10 @@ Optional env overrides:
 
 | Variable | Default |
 |----------|---------|
-| `FORGESIGHT_DB` | `dbname=forgesight` |
-| `FORGESIGHT_API` | `http://127.0.0.1:8080` |
-| `FORGESIGHT_WS` | `ws://127.0.0.1:8081` |
-| `FORGESIGHT_BIND` | `0.0.0.0` — interface the `api` binary listens on |
+| `FORGESIGHT_DB` | `dbname=forgesight` — read by `scripts/dev-up.sh`; the binaries take `--database` / `--db` |
+| `FORGESIGHT_API` | `http://127.0.0.1:8080` — REST base URL the desktop app uses |
+| `FORGESIGHT_WS` | `ws://127.0.0.1:8081` — WebSocket URL the desktop app uses |
+| `FORGESIGHT_BIND` | `0.0.0.0` — read by `scripts/dev-up.sh` only; the `api` binary takes `--bind` |
 | `FORGESIGHT_API_KEY` | unset — see [Security](#security) below |
 | `FORGESIGHT_GRPC_PORT` | unset / `0` — gRPC listener off; see [Architecture](#architecture-mvp) |
 | `FORGESIGHT_THEME` | `dark` — or `light` (also switchable in the app header) |
@@ -88,7 +91,7 @@ Stop services:
 
 The `api` binary is unauthenticated and bound to all interfaces (`0.0.0.0`) by default so local development needs zero extra setup. **Neither is safe for a deployment reachable outside your own machine** — enable both before exposing it:
 
-- **`--bind <address>` / `FORGESIGHT_BIND`** — restrict the HTTP/WS listeners to one interface, e.g. `127.0.0.1` to only accept connections proxied from the same host, or a private LAN IP.
+- **`--bind <address>`** — restrict the HTTP/WS listeners to one interface, e.g. `127.0.0.1` to only accept connections proxied from the same host, or a private LAN IP.
 - **`--api-key <key>` / `FORGESIGHT_API_KEY`** — require a matching `X-Api-Key` header on every `/api/*` request and a matching `?api_key=` query parameter on every WebSocket connection. The same key is required as `x-api-key` metadata on every gRPC call when `--grpc-port` is enabled. `/health` always stays open (liveness checks shouldn't need credentials). Generate one with `openssl rand -hex 32`.
 
 ```bash
@@ -106,7 +109,7 @@ FORGESIGHT_API_KEY="$FORGESIGHT_API_KEY" ./build/ui/app/factory-pulse
 
 ## Package the desktop app (AppImage)
 
-`scripts/package-appimage.sh` bundles the built `factory-pulse` binary, its Qt libraries, and the QML modules it imports (QtQuick, QtQuick.Controls, QtCharts, ...) into a single portable `.AppImage` — no Qt install needed on the target machine. It downloads [`linuxdeploy`](https://github.com/linuxdeploy/linuxdeploy) and its Qt plugin into `.tools/` on first run (not committed; gitignored, like `/dist/` where the output goes).
+`scripts/package-appimage.sh` bundles the built `factory-pulse` binary, its Qt libraries, and the QML modules it imports (QtQuick, QtQuick.Controls, QtCharts, ...) into a single portable `.AppImage` — no Qt install needed on the target machine. It downloads [`linuxdeploy`](https://github.com/linuxdeploy/linuxdeploy) and its Qt plugin at pinned release tags into `.tools/` on first run, and refuses any file whose sha256 does not match (not committed; gitignored, like `/dist/` where the output goes). It needs `qmake6` (or `qmake`) on `PATH`; on Ubuntu `qmake6` is installed as a dependency of `qt6-base-dev`.
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -198,7 +201,7 @@ Once configured, trigger it from the Actions tab (or `gh workflow run deploy.yml
 
 ## Load testing
 
-`scripts/load_test.py` scales the device simulator up to N synthetic devices against an already-running backend stack (`scripts/dev-up.sh` or Docker Compose) and reports end-to-end ingestion latency (reading generation → `readings` row landing in Postgres, measured entirely via Postgres's own clock to avoid cross-process clock skew) plus CPU usage of `ingestion`/`alarm-engine`/`api` during the run. Synthetic devices use a `load-XXXX` id prefix so a run never collides with the demo devices, and their rows are deleted from the database when the run finishes (`--keep-data` to skip that).
+`scripts/load_test.py` scales the device simulator up to N synthetic devices against an already-running backend stack (`scripts/dev-up.sh` or Docker Compose) and reports end-to-end ingestion latency (reading generation → `readings` row landing in Postgres, measured entirely via Postgres's own clock to avoid cross-process clock skew) plus CPU usage of `ingestion`/`alarm-engine`/`api` during the run. Synthetic devices use a `load-XXXX` id prefix so a run never collides with the demo devices, and their rows are deleted from the database when the run finishes (`--keep-data` to skip that). It shells out to the `psql` client, so `psql` must be on `PATH`.
 
 ```bash
 ./scripts/dev-up.sh
@@ -227,11 +230,11 @@ Simulators → MQTT → Ingestion → PostgreSQL
          gRPC (`ListDevices` / `GetHistory` / `ListAlarms` / `AcknowledgeAlarm`)
 ```
 
-Kafka is opt-in so the default stack stays MQTT-only. Point ingestion at a broker with `--kafka-brokers` or `FORGESIGHT_KAFKA_BROKERS`; each reading is published as the same JSON the MQTT parser already accepts, keyed by `device_id`. A local broker:
+Kafka is opt-in so the default stack stays MQTT-only. Point ingestion at a broker with `--kafka-brokers` or `FORGESIGHT_KAFKA_BROKERS`; each reading is published as the same JSON the MQTT parser already accepts, keyed by `device_id`, on the topic `forgesight.readings` (override with `--kafka-topic` or `FORGESIGHT_KAFKA_TOPIC`). A local broker:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.kafka.yml up -d kafka
-./build/ingestion/ingestion --kafka-brokers 127.0.0.1:9092
+./build/ingestion/ingestion --db "dbname=forgesight" --kafka-brokers 127.0.0.1:9092
 ```
 
 gRPC is a second client surface on the same `api` binary (CLI / scripts), not a replacement for REST/WS. It stays off unless `--grpc-port` or `FORGESIGHT_GRPC_PORT` is set. The proto is `proto/forgesight.proto`.
@@ -250,7 +253,7 @@ cd site && pnpm install && pnpm dev
 
 ## Contributing
 
-Work happens on `feature/*` branches with pull requests into `dev`. `dev` is merged into `main` for releases.
+Work happens on short-lived topic branches (`feature/*`, `fix/*`, `bugfix/*`, `ci/*`, `docs/*`) with pull requests into `dev`. `dev` is merged into `main` for releases.
 
 ## License
 
