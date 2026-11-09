@@ -1,0 +1,85 @@
+name: Browser demo (wasm)
+
+# Builds the Qt for WebAssembly live demo (FORGESIGHT_DEMO_MODE) and checks
+# that it compiles. Runs on PRs that touch the UI, the alarm-engine core or the
+# CMake files. It does not publish: the GitHub Pages site at the repository
+# root is the landing page, deployed by landing.yml. Publishing the demo needs
+# a decision about where it lives (see the PR description).
+on:
+  pull_request:
+    branches: [dev]
+    paths:
+      - "ui/**"
+      - "alarm-engine/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/pages.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ui/**"
+      - "alarm-engine/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Qt for WebAssembly and the Emscripten release Qt documents for it
+  # (Qt 6.8: Emscripten 3.1.56). Keep these two in step.
+  QT_VERSION: "6.8.1"
+  EMSDK_VERSION: "3.1.56"
+
+jobs:
+  wasm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      # The wasm build needs a host Qt of the same version for moc, rcc and
+      # qmlcachegen. Both installs are cached by the action.
+      - name: Install host Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          dir: ${{ runner.temp }}/qt
+          modules: qtcharts
+          cache: true
+
+      - name: Install Qt for WebAssembly
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: all_os
+          target: wasm
+          arch: wasm_singlethread
+          dir: ${{ runner.temp }}/qt
+          modules: qtcharts
+          cache: true
+
+      - name: Install Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EMSDK_VERSION }}
+          actions-cache-folder: emsdk-cache
+
+      - name: Configure
+        run: |
+          QT_WASM="${{ runner.temp }}/qt/${QT_VERSION}/wasm_singlethread"
+          export QT_HOST_PATH="${{ runner.temp }}/qt/${QT_VERSION}/gcc_64"
+          "$QT_WASM/bin/qt-cmake" -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release \
+            -DFORGESIGHT_DEMO_MODE=ON
+
+      - name: Build demo
+        run: cmake --build build-wasm --target factory-pulse --parallel 2
+
+      - name: Check the output
+        run: |
+          test -f build-wasm/ui/app/factory-pulse.html
+          test -f build-wasm/ui/app/factory-pulse.wasm
+          test -f build-wasm/ui/app/factory-pulse.js
