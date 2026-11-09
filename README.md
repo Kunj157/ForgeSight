@@ -6,7 +6,7 @@
 
 Qt/C++ desktop platform for real-time industrial device monitoring — live dashboards, alarm rules, and historical analytics over MQTT-fed sensor data.
 
-**Live site:** [kunj157.github.io/ForgeSight](https://kunj157.github.io/ForgeSight/) · **Download:** [Linux AppImage](https://github.com/Kunj157/ForgeSight/releases/latest/download/ForgeSight-x86_64.AppImage)
+**Live site:** [kunj157.github.io/ForgeSight](https://kunj157.github.io/ForgeSight/) · **Live demo:** [simulated plant in the browser](https://kunj157.github.io/ForgeSight/demo/) · **Download:** [Linux AppImage](https://github.com/Kunj157/ForgeSight/releases/latest/download/ForgeSight-x86_64.AppImage)
 
 ![ForgeSight desktop app: live device cards, the 3D plant floor, alarm triage and history](docs/media/forgesight-tour.gif)
 
