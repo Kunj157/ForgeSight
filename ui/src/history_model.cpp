@@ -1,7 +1,9 @@
 #include "ui/history_model.h"
 
 #include "ui/csv_export.h"
+#ifndef FORGESIGHT_DEMO_MODE
 #include "ui/pdf_export.h"
+#endif
 
 #include <QDir>
 #include <QQuickWindow>
@@ -65,7 +67,14 @@ bool HistoryModel::export_csv(const QString& path) {
 }
 
 bool HistoryModel::export_pdf(const QString& path, QQuickWindow* window) {
+#ifdef FORGESIGHT_DEMO_MODE
+    // PDF export (QPrinter) is not part of the browser build.
+    Q_UNUSED(path)
+    Q_UNUSED(window)
+    return false;
+#else
     return PdfExport::export_chart(path, window, points_);
+#endif
 }
 
 QString HistoryModel::default_export_path(const QString& filename) const {
