@@ -70,8 +70,9 @@ jobs:
 
       - name: Configure
         run: |
-          QT_WASM="${{ runner.temp }}/qt/${QT_VERSION}/wasm_singlethread"
-          export QT_HOST_PATH="${{ runner.temp }}/qt/${QT_VERSION}/gcc_64"
+          QT_BASE="${{ runner.temp }}/qt/Qt/${QT_VERSION}"
+          QT_WASM="$QT_BASE/wasm_singlethread"
+          export QT_HOST_PATH="$QT_BASE/gcc_64"
           "$QT_WASM/bin/qt-cmake" -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release \
             -DFORGESIGHT_DEMO_MODE=ON
 
