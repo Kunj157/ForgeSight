@@ -253,7 +253,7 @@ cd site && pnpm install && pnpm dev
 
 ## Contributing
 
-Work happens on short-lived topic branches (`feature/*`, `fix/*`, `bugfix/*`, `ci/*`, `docs/*`) with pull requests into `dev`. `dev` is merged into `main` for releases.
+Work happens on short-lived topic branches (`feature/*`, `fix/*`, `bugfix/*`, `chore/*`, `ci/*`, `docs/*`) with pull requests into `dev`. `dev` is merged into `main` for releases.
 
 ## License
 
