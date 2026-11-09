@@ -40,7 +40,7 @@ fetch_tool() {
     fi
     echo "Downloading $(basename "$dest")..."
     local tmp="$dest.part"
-    curl -fsSL "$url" -o "$tmp" || die "download failed: $url"
+    curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors "$url" -o "$tmp" || die "download failed: $url"
     if ! echo "$sha256  $tmp" | sha256sum -c --status -; then
         rm -f "$tmp"
         die "sha256 mismatch for $(basename "$dest") (expected $sha256)"
