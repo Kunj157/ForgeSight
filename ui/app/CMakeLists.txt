@@ -48,6 +48,9 @@ qt_add_qml_module(factory-pulse
 )
 
 target_link_libraries(factory-pulse PRIVATE Qt6::Quick Qt6::Charts Qt6::Widgets ui_lib)
+if(FORGESIGHT_DEMO_MODE)
+    target_link_libraries(factory-pulse PRIVATE ui_demo)
+endif()
 
 # Optional 3D plant view. Without Qt Quick 3D the Devices panel falls back to
 # the 2.5D isometric view at runtime, so the app still builds and runs.

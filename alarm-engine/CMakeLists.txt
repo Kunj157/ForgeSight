@@ -1,7 +1,3 @@
-find_package(spdlog REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBPQ REQUIRED IMPORTED_TARGET libpq)
-
 # Pure rule model (no database, logging or ingestion dependencies) so the
 # browser demo can run the same evaluator that the real engine uses.
 add_library(alarm_engine_core STATIC
@@ -10,6 +6,16 @@ add_library(alarm_engine_core STATIC
     src/default_rules.cpp
 )
 target_include_directories(alarm_engine_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# The engine daemon needs spdlog and libpq; the browser demo only needs the
+# core above.
+if(FORGESIGHT_DEMO_MODE)
+    return()
+endif()
+
+find_package(spdlog REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBPQ REQUIRED IMPORTED_TARGET libpq)
 
 add_library(alarm_engine_lib STATIC
     src/alarm_store.cpp
