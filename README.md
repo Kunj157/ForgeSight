@@ -38,7 +38,7 @@ The shell shows connection state at all times: **connecting / live / stale / off
 
 ## Prerequisites
 
-- Qt 6.4+ (Quick, Quick Controls, Quick Shapes, Charts, Widgets, WebSockets, HttpServer, Network, PrintSupport, Sql). On Ubuntu `libqt6sql6-sqlite` is the SQLite driver; the full package list is the apt step in `.github/workflows/ci.yml`
+- Qt 6.4+ (Quick, Quick Controls, Quick Shapes, Charts, Widgets, WebSockets, HttpServer, Network, Sql). On Ubuntu `libqt6sql6-sqlite` is the SQLite driver; the full package list is the apt step in `.github/workflows/ci.yml`
 - Optional: Qt Quick 3D (`qt6-quick3d-dev` on Ubuntu) for the 3D plant floor; without it the app builds and uses the 2.5D view
 - C++ libraries: nlohmann-json, spdlog, libpq, Paho MQTT (C and C++), librdkafka, gRPC and protobuf. The `build` job's apt step in `.github/workflows/ci.yml` lists the exact Ubuntu 24.04 packages
 - CMake 3.20+, C++20 compiler

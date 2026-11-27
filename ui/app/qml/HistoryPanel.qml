@@ -486,7 +486,8 @@ Rectangle {
                 onClicked: {
                     var path = historyModel.default_export_path("history_export.csv")
                     if (historyModel.export_csv(path)) {
-                        statusText.text = "Exported to " + path
+                        // The browser build hands the file to the browser's downloads.
+                        statusText.text = (demoMode === true ? "Downloaded " : "Exported to ") + path
                         Window.window.toast("CSV exported", path, "ok")
                     } else {
                         statusText.text = "CSV export failed"
@@ -500,7 +501,8 @@ Rectangle {
                 onClicked: {
                     var path = historyModel.default_export_path("history_export.pdf")
                     if (historyModel.export_pdf(path, Window.window)) {
-                        statusText.text = "Exported to " + path
+                        // The browser build hands the file to the browser's downloads.
+                        statusText.text = (demoMode === true ? "Downloaded " : "Exported to ") + path
                         Window.window.toast("PDF exported", path, "ok")
                     } else {
                         statusText.text = "PDF export failed"

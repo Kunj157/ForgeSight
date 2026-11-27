@@ -13,8 +13,10 @@ permissions:
 
 env:
   # Qt for WebAssembly and the Emscripten release Qt documents for it
-  # (Qt 6.8: Emscripten 3.1.56). Keep these two in step.
-  QT_VERSION: "6.8.1"
+  # (Qt 6.8: Emscripten 3.1.56). Keep these two in step. 6.8.3 rather than
+  # 6.8.1: QPdfWriter in 6.8.1 ends the document-info dictionary with "2"
+  # instead of ">>", so every exported PDF was malformed (fixed in 6.8.2).
+  QT_VERSION: "6.8.3"
   EMSDK_VERSION: "3.1.56"
 
 jobs:

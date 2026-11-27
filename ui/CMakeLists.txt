@@ -1,10 +1,11 @@
 # Demo mode (browser build) keeps only what the simulated data path needs:
-# no SQLite offline cache, no PDF export and no network clients. See the
+# no SQLite offline cache and no network clients. PDF export uses QPdfWriter
+# (Qt GUI), so it works in both builds. See the
 # FORGESIGHT_DEMO_MODE option in the root CMakeLists.txt.
 if(FORGESIGHT_DEMO_MODE)
     find_package(Qt6 REQUIRED COMPONENTS Quick Charts)
 else()
-    find_package(Qt6 REQUIRED COMPONENTS Quick WebSockets Charts PrintSupport Network Sql)
+    find_package(Qt6 REQUIRED COMPONENTS Quick WebSockets Charts Network Sql)
 endif()
 
 set(CMAKE_AUTOMOC ON)
@@ -14,6 +15,8 @@ add_library(ui_lib STATIC
     src/alarm_model.cpp
     src/history_model.cpp
     src/csv_export.cpp
+    src/pdf_export.cpp
+    src/browser_download.cpp
     src/time_format.cpp
     src/series_stats.cpp
     src/rule_model.cpp
@@ -26,6 +29,8 @@ add_library(ui_lib STATIC
     include/ui/alarm_model.h
     include/ui/history_model.h
     include/ui/csv_export.h
+    include/ui/pdf_export.h
+    include/ui/browser_download.h
     include/ui/time_format.h
     include/ui/series_stats.h
     include/ui/rule_model.h
@@ -48,17 +53,14 @@ else()
         src/ws_client.cpp
         src/api_client.cpp
         src/offline_cache.cpp
-        src/pdf_export.cpp
         include/ui/ws_client.h
         include/ui/api_client.h
         include/ui/offline_cache.h
-        include/ui/pdf_export.h
     )
     target_link_libraries(ui_lib PUBLIC
         Qt6::Quick
         Qt6::WebSockets
         Qt6::Charts
-        Qt6::PrintSupport
         Qt6::Network
         Qt6::Sql
     )
