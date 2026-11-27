@@ -1,11 +1,11 @@
 #include "ui/history_model.h"
 
+#include "ui/browser_download.h"
 #include "ui/csv_export.h"
-#ifndef FORGESIGHT_DEMO_MODE
 #include "ui/pdf_export.h"
-#endif
 
 #include <QDir>
+#include <QFileInfo>
 #include <QQuickWindow>
 #include <QStandardPaths>
 
@@ -63,21 +63,30 @@ void HistoryModel::clear() {
 }
 
 bool HistoryModel::export_csv(const QString& path) {
+#ifdef Q_OS_WASM
+    // In the browser the file goes to the visitor's downloads.
+    return browser_download(CsvExport::to_string(points_).toUtf8(), QFileInfo(path).fileName(),
+                            QStringLiteral("text/csv"));
+#else
     return CsvExport::to_file(path, points_);
+#endif
 }
 
 bool HistoryModel::export_pdf(const QString& path, QQuickWindow* window) {
-#ifdef FORGESIGHT_DEMO_MODE
-    // PDF export (QPrinter) is not part of the browser build.
-    Q_UNUSED(path)
-    Q_UNUSED(window)
-    return false;
+#ifdef Q_OS_WASM
+    const QByteArray pdf = PdfExport::to_bytes(window, points_);
+    return !pdf.isEmpty() &&
+           browser_download(pdf, QFileInfo(path).fileName(), QStringLiteral("application/pdf"));
 #else
     return PdfExport::export_chart(path, window, points_);
 #endif
 }
 
 QString HistoryModel::default_export_path(const QString& filename) const {
+#ifdef Q_OS_WASM
+    // The browser saves downloads where the visitor chooses; only the name matters.
+    return filename;
+#endif
     QString dirPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     if (dirPath.isEmpty())
         dirPath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
