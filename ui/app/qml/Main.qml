@@ -158,6 +158,8 @@ Window {
 
     RowLayout {
         anchors.fill: parent
+        // Leave room for the demo banner pinned to the bottom edge.
+        anchors.bottomMargin: demoBanner.visible ? demoBanner.height : 0
         spacing: 0
 
         Sidebar {

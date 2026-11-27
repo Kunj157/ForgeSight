@@ -1,24 +1,18 @@
 #include "ui/pdf_export.h"
 
+#include <QBuffer>
+#include <QFile>
 #include <QPainter>
-#include <QPrinter>
+#include <QPdfWriter>
 #include <QQuickWindow>
-#include <QTextStream>
 
 namespace ui {
 
-bool PdfExport::export_chart(const QString& filePath, QQuickWindow* window,
-                             const QVector<HistoryPoint>& points) {
-    QPrinter printer(QPrinter::HighResolution);
-    printer.setOutputFormat(QPrinter::PdfFormat);
-    printer.setOutputFileName(filePath);
-    printer.setPageSize(QPageSize(QPageSize::A4));
+namespace {
 
-    QPainter painter(&printer);
+void paint_report(QPainter& painter, int pageW, int pageH, QQuickWindow* window,
+                  const QVector<HistoryPoint>& points) {
     painter.setRenderHint(QPainter::Antialiasing);
-
-    int pageW = printer.pageRect(QPrinter::DevicePixel).width();
-    int pageH = printer.pageRect(QPrinter::DevicePixel).height();
 
     painter.setPen(Qt::black);
     QFont titleFont = painter.font();
@@ -56,7 +50,8 @@ bool PdfExport::export_chart(const QString& filePath, QQuickWindow* window,
     painter.drawText(50 + 3 * colW, y, "Anomaly");
     y += lineH;
 
-    painter.drawLine(50, y - 5, pageW - 50, y - 5);
+    // Just under the header text (y is already the first row's baseline).
+    painter.drawLine(50, y - lineH + 6, pageW - 50, y - lineH + 6);
 
     QFont tableFont = painter.font();
     tableFont.setBold(false);
@@ -94,9 +89,44 @@ bool PdfExport::export_chart(const QString& filePath, QQuickWindow* window,
             painter.drawImage(QRect(50, imgY, imgW, imgH), image);
         }
     }
+}
 
-    painter.end();
-    return true;
+} // namespace
+
+QByteArray PdfExport::to_bytes(QQuickWindow* window, const QVector<HistoryPoint>& points) {
+    QByteArray pdf;
+    QBuffer buffer(&pdf);
+    buffer.open(QIODevice::WriteOnly);
+    {
+        // QPdfWriter is part of Qt GUI, so the same code runs on the desktop
+        // and in the browser build (QPrinter is not available there).
+        QPdfWriter writer(&buffer);
+        // The layout below is in screen pixels (50 px margins, 20 px rows), so
+        // draw at screen resolution. At the 1200 dpi QPrinter used before,
+        // every row landed in the same few millimetres at the top of the page.
+        writer.setResolution(96);
+        writer.setPageSize(QPageSize(QPageSize::A4));
+        writer.setPageMargins(QMarginsF(10, 10, 10, 10), QPageLayout::Millimeter);
+        writer.setTitle(QStringLiteral("ForgeSight - Historical Data Export"));
+
+        QPainter painter;
+        if (!painter.begin(&writer))
+            return {};
+        paint_report(painter, writer.width(), writer.height(), window, points);
+        painter.end();
+    }
+    return pdf;
+}
+
+bool PdfExport::export_chart(const QString& filePath, QQuickWindow* window,
+                             const QVector<HistoryPoint>& points) {
+    const QByteArray pdf = to_bytes(window, points);
+    if (pdf.isEmpty())
+        return false;
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+    return file.write(pdf) == pdf.size();
 }
 
 } // namespace ui

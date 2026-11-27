@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QString>
 #include <QVector>
 
@@ -15,6 +16,8 @@ class PdfExport {
   public:
     static bool export_chart(const QString& filePath, QQuickWindow* window,
                              const QVector<HistoryPoint>& points);
+    // The report as PDF bytes; empty if it could not be drawn.
+    static QByteArray to_bytes(QQuickWindow* window, const QVector<HistoryPoint>& points);
 };
 
 } // namespace ui
