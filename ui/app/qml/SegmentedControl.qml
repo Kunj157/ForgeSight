@@ -63,7 +63,11 @@ Rectangle {
             delegate: Item {
                 readonly property bool selected: index === root.currentIndex
                 width: label.implicitWidth + 26
-                height: row.height
+                // Bound to the control, not to `row`: when the page is loaded
+                // asynchronously (History), delegates created before the Row
+                // is sized kept height 0, and Row skips zero-height items, so
+                // all but the last option piled up at x = 0.
+                height: root.height
 
                 Text {
                     id: label
